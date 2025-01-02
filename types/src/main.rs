@@ -122,6 +122,18 @@ enum Role {
     Teacher,
 }
 
+enum Val {
+    First,
+    Second,
+    Third,
+}
+
+enum Color  {
+    Red = 0xff0000,
+    Green = 0x00ff00,
+    Blue = 0x0000ff, 
+}
+
 fn do_enums() {
     let pressed = WebEvent::KeyPress('f');
     let pasted = WebEvent::Paste(String::from("hi"));
@@ -148,6 +160,11 @@ fn do_enums() {
         Student => println!("learning"),
         Teacher => println!("teaching"),
     }
+
+    println!("first is {}", Val::First as i32);
+    println!("second is {}", Val::Second as i32);
+    println!("roses are #{:06x}", Color::Red as i32);
+    println!("violets are #{:06x}", Color::Blue as i32);
 }
 
 
