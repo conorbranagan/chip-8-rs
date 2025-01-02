@@ -167,6 +167,46 @@ fn do_enums() {
     println!("violets are #{:06x}", Color::Blue as i32);
 }
 
+use crate::List::*;
+
+enum List {
+    Cons(u32, Box<List>),
+    Nil,
+}
+
+impl List {
+    // Create new list
+    fn new() -> List {
+        Nil
+    }
+
+    fn prepend(self, elem: u32) -> List {
+        Cons(elem, Box::new(self))
+    }
+
+    fn len(&self) -> u32 {
+        match *self {
+            Cons(_, ref tail) => 1 + tail.len(),
+            Nil => 0,
+        }
+    }
+
+    fn stringify(&self) -> String {
+        match *self {
+            Cons(head, ref tail) => {
+                format!("{}, {}", head, tail.stringify())
+            },
+            Nil => String::from("Nil"),
+        }
+    }
+}
+
+const THRESHOLD: i32 = 10;
+static LANGUAGE: &str = "Rust";
+
+fn is_big(n: i32) -> bool {
+    n > THRESHOLD
+}
 
 fn main() {
     println!("\n\nStructs");
@@ -174,4 +214,16 @@ fn main() {
 
     println!("\n\nEnums!");
     do_enums();
+
+    let mut list = List::new();
+    
+    for i in 0..10 {
+        list = list.prepend(i);
+    }
+    println!("linked list has length: {}", list.len());
+    println!("it contains... {}", list.stringify());
+
+
+    let n = 16;
+    println!("{} is {}", n, if is_big(n) {"big"} else {"small"})
 }
