@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
+use rand::Rng;
 use std::env;
 use std::fs;
+use std::num::Wrapping;
 
 // Sound & Display
 
@@ -20,7 +22,7 @@ impl Display {
     }
 
     fn set(&mut self, x: usize, y: usize, val: bool) {
-        if y >= self.pixels.len() || y >= self.pixels[y].len() {
+        if y >= self.pixels.len() || x >= self.pixels[y].len() {
             // Cut off bytes outside of the display.
             return;
         }
@@ -28,7 +30,7 @@ impl Display {
     }
 
     fn get(&mut self, x: usize, y: usize) -> Result<bool, &str> {
-        if y >= self.pixels.len() || y >= self.pixels[y].len() {
+        if y >= self.pixels.len() || x >= self.pixels[y].len() {
             return Err("pixel out of range");
         }
         Ok(self.pixels[y][x])
@@ -103,6 +105,10 @@ impl Memory {
         self.data[addr]
     }
 
+    fn set(&mut self, addr: usize, val: u8) {
+        self.data[addr] = val;
+    }
+
     fn fetch_next(&mut self) -> Result<u16, &str> {
         // need to read 2 bytes
         if self.pc + 1 >= self.data.len() {
@@ -129,16 +135,22 @@ impl Registers {
         };
     }
 
-    fn get(&mut self, register_num: u8) -> u8 {
-        self.data[register_num as usize]
+    fn get(&mut self, reg: u8) -> u8 {
+        self.data[reg as usize]
     }
 
-    fn set(&mut self, register_num: u8, val: u8) {
-        self.data[register_num as usize] = val;
+    fn set(&mut self, reg: u8, val: u8) {
+        self.data[reg as usize] = val;
     }
 
-    fn add(&mut self, register_num: u8, val: u8) {
-        self.data[register_num as usize] += val;
+    fn add(&mut self, reg: u8, val: u8) {
+        let reg_val = self.data[reg as usize];
+        self.data[reg as usize] = (Wrapping(reg_val) + Wrapping(val)).0;
+    }
+
+    fn sub(&mut self, reg: u8, val: u8) {
+        let reg_val = self.data[reg as usize];
+        self.data[reg as usize] = (Wrapping(reg_val) - Wrapping(val)).0;
     }
 }
 
@@ -198,7 +210,8 @@ fn main() {
     chip8.load_rom(rom_path);
     println!("Loaded {} into memory", rom_path);
 
-    let mut cnt = 1;
+    let max_instr = 350;
+    let mut c = 0;
     loop {
         // fetch()
         let op = chip8.fetch_next().unwrap();
@@ -212,9 +225,8 @@ fn main() {
 
         // execute()
         chip8.execute(instr);
-
-        cnt += 1;
-        if cnt > 25 {
+        c += 1;
+        if c >= max_instr {
             break;
         }
     }
@@ -282,7 +294,7 @@ fn decode(instr: u16) -> Instr {
                 reg1: d_reg1(instr),
                 reg2: d_reg2(instr),
             },
-            0x6 => Shift {
+            0x6 => ShiftRight {
                 reg1: d_reg1(instr),
                 reg2: d_reg2(instr),
             },
@@ -290,9 +302,9 @@ fn decode(instr: u16) -> Instr {
                 reg1: d_reg2(instr),
                 reg2: d_reg1(instr),
             },
-            0xE => Shift {
-                reg1: d_reg2(instr),
-                reg2: d_reg1(instr),
+            0xE => ShiftLeft {
+                reg1: d_reg1(instr),
+                reg2: d_reg2(instr),
             },
             _ => Unknown(instr),
         },
@@ -328,8 +340,12 @@ fn decode(instr: u16) -> Instr {
             0x0A => GetKey { reg: d_reg1(instr) },
             0x29 => FontChar { reg: d_reg1(instr) },
             0x33 => BinDecConv { reg: d_reg1(instr) },
-            0x55 => StoreMem { reg: d_reg1(instr) },
-            0x65 => LoadMem { reg: d_reg1(instr) },
+            0x55 => StoreMem {
+                to_reg: d_reg1(instr),
+            },
+            0x65 => LoadMem {
+                to_reg: d_reg1(instr),
+            },
             _ => Unknown(instr),
         },
         _ => Unknown(instr),
@@ -370,7 +386,8 @@ enum Instr {
     XOR { reg1: u8, reg2: u8 },                 // 8XY3
     Add { reg1: u8, reg2: u8 },                 // 8XY4
     Sub { reg1: u8, reg2: u8 },                 // 8XY5, 8XY7
-    Shift { reg1: u8, reg2: u8 },               // 8XY6, 8XYE
+    ShiftRight { reg1: u8, reg2: u8 },          // 8XY6
+    ShiftLeft { reg1: u8, reg2: u8 },           // 8XYE
     SkipRegNotEqual { reg1: u8, reg2: u8 },     // 9XY0
     SetIndex { val: u16 },                      // ANNN
     JumpOffset { val: u16 },                    // BNNN
@@ -385,8 +402,8 @@ enum Instr {
     GetKey { reg: u8 },                         // FX0A
     FontChar { reg: u8 },                       // FX29
     BinDecConv { reg: u8 },                     // FX33
-    StoreMem { reg: u8 },                       // FX55
-    LoadMem { reg: u8 },                        // FX65
+    StoreMem { to_reg: u8 },                    // FX55
+    LoadMem { to_reg: u8 },                     // FX65
 }
 
 struct Chip8 {
@@ -444,18 +461,29 @@ impl Chip8 {
             }
             SkipValEqual { reg, val } => {
                 println!("Skipping if register {} equals value {:#X}", reg, val);
-                // Implement SkipValEqual logic here
+                let reg_val = self.registers.get(reg);
+                if val == reg_val {
+                    _ = self.memory.fetch_next();
+                }
             }
             SkipValNotEqual { reg, val } => {
                 println!(
                     "Skipping if register {} does not equal value {:#X}",
                     reg, val
                 );
-                // Implement SkipValNotEqual logic here
+                let reg_val = self.registers.get(reg);
+                if val != reg_val {
+                    _ = self.memory.fetch_next();
+                }
             }
             SkipRegEqual { reg1, reg2 } => {
                 println!("Skipping if register {} equals register {}", reg1, reg2);
                 // Implement SkipRegEqual logic here
+                let reg1_val = self.registers.get(reg1);
+                let reg2_val = self.registers.get(reg2);
+                if reg1_val == reg2_val {
+                    _ = self.memory.fetch_next();
+                }
             }
             SetVal { reg, val } => {
                 println!("Setting register {0} to value {1:} ({1:#X})", reg, val);
@@ -470,54 +498,93 @@ impl Chip8 {
                     "Setting register {} to the value of register {}",
                     reg1, reg2
                 );
-                // Implement SetReg logic here
+                let reg_val = self.registers.get(reg2);
+                self.registers.set(reg1, reg_val);
             }
             OR { reg1, reg2 } => {
                 println!("ORing register {} with register {}", reg1, reg2);
-                // Implement OR logic here
+                let reg1_val = self.registers.get(reg1);
+                let reg2_val = self.registers.get(reg2);
+                self.registers.set(reg1, reg1_val | reg2_val);
             }
             AND { reg1, reg2 } => {
                 println!("ANDing register {} with register {}", reg1, reg2);
-                // Implement AND logic here
+                let reg1_val = self.registers.get(reg1);
+                let reg2_val = self.registers.get(reg2);
+                self.registers.set(reg1, reg1_val & reg2_val);
             }
             XOR { reg1, reg2 } => {
                 println!("XORing register {} with register {}", reg1, reg2);
-                // Implement XOR logic here
+                let reg1_val = self.registers.get(reg1);
+                let reg2_val = self.registers.get(reg2);
+                self.registers.set(reg1, reg1_val ^ reg2_val);
             }
             Add { reg1, reg2 } => {
                 println!("Adding register {} to register {}", reg2, reg1);
-                // Implement Add logic here
+                let reg2_val = self.registers.get(reg2);
+                self.registers.add(reg1, reg2_val);
+
+                // need to set carry in case of overflow
+                let reg1_val = self.registers.get(reg1);
+                if (reg1_val as u32) + (reg2_val as u32) > 255 {
+                    self.registers.set(0xF, 1);
+                } else {
+                    self.registers.set(0xF, 0);
+                }
             }
             Sub { reg1, reg2 } => {
-                println!("Subtracting register {} from register {}", reg2, reg1);
-                // Implement Sub logic here
+                println!("Adding register {} to register {}", reg2, reg1);
+                let reg1_val = self.registers.get(reg1);
+                let reg2_val = self.registers.get(reg2);
+                self.registers.sub(reg1, reg2_val);
+
+                // set carry to handle underflow
+                if reg1_val > reg2_val {
+                    self.registers.set(0xF, 1);
+                } else if reg1_val < reg2_val {
+                    self.registers.set(0xF, 0);
+                }
             }
-            Shift { reg1, reg2 } => {
-                println!("Shifting register {} with register {}", reg1, reg2);
-                // Implement Shift logic here
+            ShiftRight { reg1, reg2: _ } => {
+                // Use later implementation that ignores reg2
+                println!("Shifting register {}", reg1);
+                let reg_val = self.registers.get(reg1);
+                self.registers.set(reg1, reg_val >> 1);
+                self.registers.set(0xF, reg_val & 0x00F);
+            }
+            ShiftLeft { reg1, reg2: _ } => {
+                // Use later implementation that ignores reg2
+                println!("Shifting register {}", reg1);
+                let reg_val = self.registers.get(reg1);
+                self.registers.set(reg1, reg_val << 1);
+                self.registers.set(0xF, (reg_val >> 4) & 0x00F);
             }
             SkipRegNotEqual { reg1, reg2 } => {
                 println!(
                     "Skipping if register {} does not equal register {}",
                     reg1, reg2
                 );
-                // Implement SkipRegNotEqual logic here
+                let reg1_val = self.registers.get(reg1);
+                let reg2_val = self.registers.get(reg2);
+                if reg1_val != reg2_val {
+                    _ = self.memory.fetch_next();
+                }
             }
             SetIndex { val } => {
                 println!("Setting index register to {:#X}", val);
-                // Implement SetIndex logic here
                 self.index_register = val as usize;
             }
             JumpOffset { val } => {
                 println!("Jumping to address with offset {:#X}", val);
-                // Implement JumpOffset logic here
+                self.memory.pc += self.registers.get(0) as usize;
             }
             Random { reg, val } => {
                 println!(
                     "Generating random number for register {} with mask {:#X}",
                     reg, val
                 );
-                // Implement Random logic here
+                let rand_val = rand::thread_rng().gen_range(0..255) as u8;
+                self.registers.set(0, rand_val & val);
             }
             Display { reg1, reg2, height } => {
                 // Wrap coordinates around display.
@@ -564,19 +631,19 @@ impl Chip8 {
             }
             GetDelayTimer { reg } => {
                 println!("Getting delay timer value into register {}", reg);
-                // Implement GetDelayTimer logic here
+                self.registers.set(reg, self.delay_timer);
             }
             SetDelayTimer { reg } => {
                 println!("Setting delay timer to value in register {}", reg);
-                // Implement SetDelayTimer logic here
+                self.delay_timer = self.registers.get(reg)
             }
             SetSoundTimer { reg } => {
                 println!("Setting sound timer to value in register {}", reg);
-                // Implement SetSoundTimer logic here
+                self.sound_timer = self.registers.get(reg);
             }
             AddToIndex { reg } => {
                 println!("Adding register {} to index register", reg);
-                // Implement AddToIndex logic here
+                self.index_register += self.registers.get(reg) as usize;
             }
             GetKey { reg } => {
                 println!("Waiting for key press to store in register {}", reg);
@@ -587,16 +654,33 @@ impl Chip8 {
                 // Implement FontChar logic here
             }
             BinDecConv { reg } => {
-                println!("Converting register {} to binary-coded decimal", reg);
-                // Implement BinDecConv logic here
+                let val = self.registers.get(reg);
+                let (v1, v2, v3) = ((val / 100), (val / 10 % 10), (val % 10));
+                let idx = self.index_register;
+                self.memory.set(idx, v1);
+                self.memory.set(idx + 1, v2);
+                self.memory.set(idx + 2, v3);
+                println!(
+                    "Converting register {} to binary-coded decimal {} => ({}, {}, {})",
+                    reg, val, v1, v2, v3
+                );
             }
-            StoreMem { reg } => {
-                println!("Storing registers 0 through {} into memory", reg);
-                // Implement StoreMem logic here
+            StoreMem { to_reg } => {
+                println!("Storing registers 0 through {} into memory", to_reg);
+                let mut addr = self.index_register;
+                for reg in 0..=to_reg {
+                    self.memory.set(addr, self.registers.get(reg));
+                    addr += 1;
+                }
             }
-            LoadMem { reg } => {
-                println!("Loading memory into registers 0 through {}", reg);
-                // Implement LoadMem logic here
+            LoadMem { to_reg } => {
+                println!("Loading memory into registers 0 through {}", to_reg);
+                let mut addr = self.index_register;
+                for reg in 0..=to_reg {
+                    let val = self.memory.read(addr);
+                    self.registers.set(reg, val);
+                    addr += 1;
+                }
             }
         }
     }
@@ -629,7 +713,7 @@ decode_tests! {
     t13: 0x8233, Instr::XOR{ reg1: 2, reg2: 3},
     t14: 0x8234, Instr::Add{ reg1: 2, reg2: 3},
     t15: 0x8235, Instr::Sub{ reg1: 2, reg2: 3},
-    t16: 0x8236, Instr::Shift{ reg1: 2, reg2: 3},
+    t16: 0x8236, Instr::ShiftRight{ reg1: 2, reg2: 3},
     t17: 0x9230, Instr::SkipRegNotEqual{ reg1: 2, reg2: 3},
     t18: 0xA123, Instr::SetIndex{ val: 0x0123},
     t19: 0xB456, Instr::JumpOffset{ val: 0x0456},
@@ -644,6 +728,6 @@ decode_tests! {
     t28: 0xF50A, Instr::GetKey{ reg: 5},
     t29: 0xF629, Instr::FontChar{ reg: 6},
     t30: 0xF733, Instr::BinDecConv{ reg: 7},
-    t31: 0xF855, Instr::StoreMem{ reg: 8},
-    t32: 0xF965, Instr::LoadMem{ reg: 9},
+    t31: 0xF855, Instr::StoreMem{ to_reg: 8},
+    t32: 0xF965, Instr::LoadMem{ to_reg: 9},
 }
