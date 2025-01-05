@@ -5,22 +5,50 @@ use std::fs;
 
 // Sound & Display
 
-const DISPLAY_WIDTH: usize = 64;
-const DISPLAY_HEIGHT: usize = 32;
+const DISPLAY_WIDTH: u8 = 64;
+const DISPLAY_HEIGHT: u8 = 32;
 
 struct Display {
-    pixels: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+    pixels: [[bool; DISPLAY_WIDTH as usize]; DISPLAY_HEIGHT as usize],
 }
 
 impl Display {
     fn new() -> Display {
         Display {
-            pixels: [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+            pixels: [[false; DISPLAY_WIDTH as usize]; DISPLAY_HEIGHT as usize],
         }
     }
 
+    fn set(&mut self, x: usize, y: usize, val: bool) {
+        if y >= self.pixels.len() || y >= self.pixels[y].len() {
+            // Cut off bytes outside of the display.
+            return;
+        }
+        self.pixels[y][x] = val;
+    }
+
+    fn get(&mut self, x: usize, y: usize) -> Result<bool, &str> {
+        if y >= self.pixels.len() || y >= self.pixels[y].len() {
+            return Err("pixel out of range");
+        }
+        Ok(self.pixels[y][x])
+    }
+
     fn clear(&mut self) {
-        self.pixels = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
+        self.pixels = [[false; DISPLAY_WIDTH as usize]; DISPLAY_HEIGHT as usize];
+    }
+
+    fn render(&mut self) {
+        for row in self.pixels.iter_mut() {
+            for v in row.iter() {
+                if *v {
+                    print!("█")
+                } else {
+                    print!(" ")
+                }
+            }
+            print!("\n");
+        }
     }
 }
 
@@ -43,12 +71,10 @@ const FONT: [[u8; 5]; 16] = [
     [0xF0, 0x80, 0xF0, 0x80, 0x80], // F
 ];
 
-static DELAY_TIMER: u8 = 0;
-static SOUND_TIMER: u8 = 0;
-
 // Memory
 
 const RAM_SIZE: usize = 4 * 1024;
+const ROM_OFFSET: usize = 0x200;
 
 struct Memory {
     data: [u8; RAM_SIZE],
@@ -66,13 +92,15 @@ impl Memory {
     fn load_rom(&mut self, rom_path: &String) {
         let rom_bytes = fs::read(rom_path).expect("unable to read rom file");
 
-        // Load rom starting at Address 200 per doc.
-        let start = 100;
-        if rom_bytes.len() > (self.data.len() - start) + 1 {
+        if rom_bytes.len() > (self.data.len() - ROM_OFFSET) + 1 {
             panic!("rom is too large to fit into memory")
         }
-        self.data[start..start + rom_bytes.len()].copy_from_slice(&rom_bytes);
-        self.pc = start;
+        self.data[ROM_OFFSET..ROM_OFFSET + rom_bytes.len()].copy_from_slice(&rom_bytes);
+        self.pc = ROM_OFFSET;
+    }
+
+    fn read(&mut self, addr: usize) -> u8 {
+        self.data[addr]
     }
 
     fn fetch_next(&mut self) -> Result<u16, &str> {
@@ -89,20 +117,6 @@ impl Memory {
 
 const NUM_REGISTERS: usize = 16;
 
-struct IndexRegister {
-    val: u8,
-}
-
-impl IndexRegister {
-    fn new() -> IndexRegister {
-        IndexRegister { val: 0 }
-    }
-
-    fn set(&mut self, val: u8) {
-        self.val = val;
-    }
-}
-
 struct Registers {
     // Registers are V0 through VF
     data: [u8; NUM_REGISTERS],
@@ -115,16 +129,22 @@ impl Registers {
         };
     }
 
-    fn set(&mut self, register_num: usize, val: u8) {
-        self.data[register_num] = val;
+    fn get(&mut self, register_num: u8) -> u8 {
+        self.data[register_num as usize]
     }
 
-    fn add(&mut self, register_num: usize, val: u8) {
-        self.data[register_num] += val;
+    fn set(&mut self, register_num: u8, val: u8) {
+        self.data[register_num as usize] = val;
+    }
+
+    fn add(&mut self, register_num: u8, val: u8) {
+        self.data[register_num as usize] += val;
     }
 }
 
 // Stack
+
+static MAX_STACK_SIZE: usize = 100;
 
 struct Stack {
     data: Vec<u16>,
@@ -173,18 +193,15 @@ fn main() {
         return;
     }
 
-    let mut memory = Memory::new();
-    let display = Display::new();
-    let stack = Stack::new(16);
-    let index_register = IndexRegister::new();
-
+    let mut chip8 = Chip8::new();
     let rom_path = args.get(1).unwrap();
-    memory.load_rom(rom_path);
+    chip8.load_rom(rom_path);
     println!("Loaded {} into memory", rom_path);
 
+    let mut cnt = 1;
     loop {
         // fetch()
-        let op = memory.fetch_next().unwrap();
+        let op = chip8.fetch_next().unwrap();
 
         // FIXME
         if op == 0x0 {
@@ -192,13 +209,19 @@ fn main() {
         }
 
         let instr = decode(op);
-        println!("{:?}", instr)
 
         // execute()
+        chip8.execute(instr);
+
+        cnt += 1;
+        if cnt > 25 {
+            break;
+        }
     }
 }
 
 fn decode(instr: u16) -> Instr {
+    println!("{:#X}", instr);
     let opcode = (instr & 0xF000) >> 12;
 
     use Instr::*;
@@ -290,7 +313,7 @@ fn decode(instr: u16) -> Instr {
         0xD => Display {
             reg1: d_reg1(instr),
             reg2: d_reg2(instr),
-            pixels: (instr & 0x000F) as u8,
+            height: (instr & 0x000F) as u8,
         },
         0xE => match instr & 0x00FF {
             0x9E => SkipIfPressed { reg: d_reg1(instr) },
@@ -352,7 +375,7 @@ enum Instr {
     SetIndex { val: u16 },                      // ANNN
     JumpOffset { val: u16 },                    // BNNN
     Random { reg: u8, val: u8 },                // CXNN
-    Display { reg1: u8, reg2: u8, pixels: u8 }, // DXYN
+    Display { reg1: u8, reg2: u8, height: u8 }, // DXYN
     SkipIfPressed { reg: u8 },                  // EX9E
     SkipNotPressed { reg: u8 },                 // EXA1
     GetDelayTimer { reg: u8 },                  // FX07
@@ -364,6 +387,219 @@ enum Instr {
     BinDecConv { reg: u8 },                     // FX33
     StoreMem { reg: u8 },                       // FX55
     LoadMem { reg: u8 },                        // FX65
+}
+
+struct Chip8 {
+    memory: Memory,
+    display: Display,
+    registers: Registers,
+    stack: Stack,
+    index_register: usize,
+    delay_timer: u8,
+    sound_timer: u8,
+}
+
+impl Chip8 {
+    fn new() -> Chip8 {
+        Chip8 {
+            memory: Memory::new(),
+            display: Display::new(),
+            registers: Registers::new(),
+            stack: Stack::new(MAX_STACK_SIZE),
+            index_register: 0,
+            delay_timer: 0,
+            sound_timer: 0,
+        }
+    }
+
+    fn load_rom(&mut self, rom_path: &String) {
+        self.memory.load_rom(rom_path);
+    }
+
+    fn fetch_next(&mut self) -> Result<u16, &str> {
+        self.memory.fetch_next()
+    }
+
+    fn execute(&mut self, instr: Instr) {
+        use Instr::*;
+        match instr {
+            Unknown(code) => {
+                println!("Unknown instruction: {:#X}", code);
+            }
+            ClearScreen => {
+                println!("Executing ClearScreen");
+                self.display.clear();
+            }
+            ExitSubroutine => {
+                println!("Executing ExitSubroutine");
+                // Implement ExitSubroutine logic here
+            }
+            Jump { addr } => {
+                println!("Jumping to address {:#X}", addr);
+                self.memory.pc = addr as usize;
+            }
+            CallSubroutine { addr } => {
+                println!("Calling subroutine at address {:#X}", addr);
+                // Implement CallSubroutine logic here
+            }
+            SkipValEqual { reg, val } => {
+                println!("Skipping if register {} equals value {:#X}", reg, val);
+                // Implement SkipValEqual logic here
+            }
+            SkipValNotEqual { reg, val } => {
+                println!(
+                    "Skipping if register {} does not equal value {:#X}",
+                    reg, val
+                );
+                // Implement SkipValNotEqual logic here
+            }
+            SkipRegEqual { reg1, reg2 } => {
+                println!("Skipping if register {} equals register {}", reg1, reg2);
+                // Implement SkipRegEqual logic here
+            }
+            SetVal { reg, val } => {
+                println!("Setting register {0} to value {1:} ({1:#X})", reg, val);
+                self.registers.set(reg, val);
+            }
+            AddVal { reg, val } => {
+                println!("Adding value {:#X} to register {}", val, reg);
+                self.registers.add(reg, val);
+            }
+            SetReg { reg1, reg2 } => {
+                println!(
+                    "Setting register {} to the value of register {}",
+                    reg1, reg2
+                );
+                // Implement SetReg logic here
+            }
+            OR { reg1, reg2 } => {
+                println!("ORing register {} with register {}", reg1, reg2);
+                // Implement OR logic here
+            }
+            AND { reg1, reg2 } => {
+                println!("ANDing register {} with register {}", reg1, reg2);
+                // Implement AND logic here
+            }
+            XOR { reg1, reg2 } => {
+                println!("XORing register {} with register {}", reg1, reg2);
+                // Implement XOR logic here
+            }
+            Add { reg1, reg2 } => {
+                println!("Adding register {} to register {}", reg2, reg1);
+                // Implement Add logic here
+            }
+            Sub { reg1, reg2 } => {
+                println!("Subtracting register {} from register {}", reg2, reg1);
+                // Implement Sub logic here
+            }
+            Shift { reg1, reg2 } => {
+                println!("Shifting register {} with register {}", reg1, reg2);
+                // Implement Shift logic here
+            }
+            SkipRegNotEqual { reg1, reg2 } => {
+                println!(
+                    "Skipping if register {} does not equal register {}",
+                    reg1, reg2
+                );
+                // Implement SkipRegNotEqual logic here
+            }
+            SetIndex { val } => {
+                println!("Setting index register to {:#X}", val);
+                // Implement SetIndex logic here
+                self.index_register = val as usize;
+            }
+            JumpOffset { val } => {
+                println!("Jumping to address with offset {:#X}", val);
+                // Implement JumpOffset logic here
+            }
+            Random { reg, val } => {
+                println!(
+                    "Generating random number for register {} with mask {:#X}",
+                    reg, val
+                );
+                // Implement Random logic here
+            }
+            Display { reg1, reg2, height } => {
+                // Wrap coordinates around display.
+                let x_coord = self.registers.get(reg1) & (DISPLAY_WIDTH - 1);
+                let y_coord = self.registers.get(reg2) & (DISPLAY_HEIGHT - 1);
+                println!(
+                    "Displaying sprite at ({}, {}) with height {}",
+                    x_coord, y_coord, height
+                );
+
+                // VF starts at 0, will flip if any pixels are turned off.
+                let mut vf = 0;
+                let mut ireg: usize = self.index_register;
+
+                for row in 0..height {
+                    let sprite_byte: u8 = self.memory.read(ireg as usize);
+                    let mut x_offset = 0;
+                    for bit in (0..8).rev() {
+                        let b: u8 = sprite_byte >> bit & 1;
+                        let x = (x_coord + x_offset) as usize;
+                        let y = (y_coord + row) as usize;
+                        let p = self.display.get(x, y);
+
+                        if b == 1 && p.unwrap() {
+                            self.display.set(x, y, false);
+                            vf = 1;
+                        } else {
+                            self.display.set(x, y, b == 1);
+                        }
+                        x_offset += 1;
+                    }
+                    ireg += 1;
+                }
+                self.registers.set(0xF, vf);
+                self.display.render();
+            }
+            SkipIfPressed { reg } => {
+                println!("Skipping if key in register {} is pressed", reg);
+                // Implement SkipIfPressed logic here
+            }
+            SkipNotPressed { reg } => {
+                println!("Skipping if key in register {} is not pressed", reg);
+                // Implement SkipNotPressed logic here
+            }
+            GetDelayTimer { reg } => {
+                println!("Getting delay timer value into register {}", reg);
+                // Implement GetDelayTimer logic here
+            }
+            SetDelayTimer { reg } => {
+                println!("Setting delay timer to value in register {}", reg);
+                // Implement SetDelayTimer logic here
+            }
+            SetSoundTimer { reg } => {
+                println!("Setting sound timer to value in register {}", reg);
+                // Implement SetSoundTimer logic here
+            }
+            AddToIndex { reg } => {
+                println!("Adding register {} to index register", reg);
+                // Implement AddToIndex logic here
+            }
+            GetKey { reg } => {
+                println!("Waiting for key press to store in register {}", reg);
+                // Implement GetKey logic here
+            }
+            FontChar { reg } => {
+                println!("Setting index to font character for register {}", reg);
+                // Implement FontChar logic here
+            }
+            BinDecConv { reg } => {
+                println!("Converting register {} to binary-coded decimal", reg);
+                // Implement BinDecConv logic here
+            }
+            StoreMem { reg } => {
+                println!("Storing registers 0 through {} into memory", reg);
+                // Implement StoreMem logic here
+            }
+            LoadMem { reg } => {
+                println!("Loading memory into registers 0 through {}", reg);
+                // Implement LoadMem logic here
+            }
+        }
+    }
 }
 
 macro_rules! decode_tests {
@@ -398,7 +634,7 @@ decode_tests! {
     t18: 0xA123, Instr::SetIndex{ val: 0x0123},
     t19: 0xB456, Instr::JumpOffset{ val: 0x0456},
     t20: 0xC3A5, Instr::Random{ reg: 3, val: 0xA5},
-    t21: 0xD125, Instr::Display{ reg1: 1, reg2: 2, pixels: 0x5},
+    t21: 0xD125, Instr::Display{ reg1: 1, reg2: 2, height: 0x5},
     t22: 0xE19E, Instr::SkipIfPressed{ reg: 1},
     t23: 0xE1A1, Instr::SkipNotPressed{ reg: 1},
     t24: 0xF107, Instr::GetDelayTimer{ reg: 1},
