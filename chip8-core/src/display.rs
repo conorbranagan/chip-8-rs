@@ -48,3 +48,18 @@ impl Display {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display() {
+        let mut display = Display::new();
+        display.set(1, 2, true);
+        assert_eq!(display.get(1, 2).unwrap(), true);
+        assert_eq!(display.get(1, 3).unwrap(), false);
+        display.clear();
+        assert_eq!(display.get(1, 2).unwrap(), false);
+    }
+}

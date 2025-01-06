@@ -3,5 +3,6 @@ name = "chip8"
 version = "0.1.0"
 edition = "2021"
 
+
 [dependencies]
-rand = "0.8" 
+chip8_core = { path = "../chip8-core" }
