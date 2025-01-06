@@ -14,13 +14,7 @@ fn main() {
     chip8.load_rom(rom_path);
     println!("Loaded {} into memory", rom_path);
 
-    let max_instr = 350;
-    let mut c = 0;
-    loop {
+    for i in 0..350 {
         chip8.execute_next().unwrap();
-        c += 1;
-        if c >= max_instr {
-            break;
-        }
     }
 }

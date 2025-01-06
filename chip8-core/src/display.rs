@@ -1,18 +1,17 @@
 const DISPLAY_WIDTH: u8 = 64;
 const DISPLAY_HEIGHT: u8 = 32;
 
-pub(crate) fn new() -> Display {
-    Display::new()
-}
-
 pub(crate) struct Display {
-    pixels: [[bool; DISPLAY_WIDTH as usize]; DISPLAY_HEIGHT as usize],
+    pixels: [[bool; Display::WIDTH]; Display::HEIGHT],
 }
 
 impl Display {
+    pub const HEIGHT: usize = 64;
+    pub const WIDTH: usize = 32;
+
     pub(crate) fn new() -> Display {
         Display {
-            pixels: [[false; DISPLAY_WIDTH as usize]; DISPLAY_HEIGHT as usize],
+            pixels: [[false; Display::WIDTH]; Display::HEIGHT],
         }
     }
 
@@ -32,7 +31,7 @@ impl Display {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.pixels = [[false; DISPLAY_WIDTH as usize]; DISPLAY_HEIGHT as usize];
+        self.pixels = [[false; Display::WIDTH]; Display::HEIGHT];
     }
 
     pub(crate) fn render(&mut self) {
