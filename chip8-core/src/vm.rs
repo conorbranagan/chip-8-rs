@@ -43,14 +43,6 @@ impl Registers {
     }
 }
 
-#[derive(Debug)]
-enum Chip8Message {
-    Tick,
-    KeyPress(u8),
-    UpdateDisplay(),
-    Shutdown,
-}
-
 pub struct Chip8VM {
     memory: Memory,
     display: Display,

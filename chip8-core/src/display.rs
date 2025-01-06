@@ -1,13 +1,10 @@
-const DISPLAY_WIDTH: u8 = 64;
-const DISPLAY_HEIGHT: u8 = 32;
-
 pub(crate) struct Display {
     pixels: [[bool; Display::WIDTH]; Display::HEIGHT],
 }
 
 impl Display {
-    pub const HEIGHT: usize = 64;
-    pub const WIDTH: usize = 32;
+    pub const WIDTH: usize = 64;
+    pub const HEIGHT: usize = 32;
 
     pub(crate) fn new() -> Display {
         Display {
@@ -20,7 +17,7 @@ impl Display {
             // Cut off bytes outside of the display.
             return;
         }
-        self.pixels[y & (DISPLAY_HEIGHT - 1) as usize][x & (DISPLAY_WIDTH - 1) as usize] = val;
+        self.pixels[y & (Display::HEIGHT - 1) as usize][x & (Display::WIDTH - 1) as usize] = val;
     }
 
     pub(crate) fn get(&mut self, x: usize, y: usize) -> Result<bool, &str> {
