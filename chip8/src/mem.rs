@@ -1,15 +1,15 @@
 use std::fs;
 use std::num::Wrapping;
 
-pub fn new_memory() -> Memory {
+pub(crate) fn new_memory() -> Memory {
     Memory::new()
 }
 
-pub fn new_registers() -> Registers {
+pub(crate) fn new_registers() -> Registers {
     Registers::new()
 }
 
-pub fn new_stack() -> Stack {
+pub(crate) fn new_stack() -> Stack {
     Stack::new(MAX_STACK_SIZE)
 }
 
@@ -35,7 +35,7 @@ const FONT: [[u8; 5]; 16] = [
 const RAM_SIZE: usize = 4 * 1024;
 const ROM_OFFSET: usize = 0x200;
 
-pub struct Memory {
+pub(crate) struct Memory {
     data: [u8; RAM_SIZE],
     pc: usize, // should this be separate?
 }
@@ -48,15 +48,15 @@ impl Memory {
         }
     }
 
-    pub fn set_pc(&mut self, pc: usize) {
+    pub(crate) fn set_pc(&mut self, pc: usize) {
         self.pc = pc
     }
 
-    pub fn add_pc(&mut self, val: usize) {
+    pub(crate) fn add_pc(&mut self, val: usize) {
         self.pc += val
     }
 
-    pub fn load_rom(&mut self, rom_path: &String) {
+    pub(crate) fn load_rom(&mut self, rom_path: &String) {
         let rom_bytes = fs::read(rom_path).expect("unable to read rom file");
 
         if rom_bytes.len() > (self.data.len() - ROM_OFFSET) + 1 {
@@ -66,15 +66,15 @@ impl Memory {
         self.pc = ROM_OFFSET;
     }
 
-    pub fn read(&mut self, addr: usize) -> u8 {
+    pub(crate) fn read(&mut self, addr: usize) -> u8 {
         self.data[addr]
     }
 
-    pub fn set(&mut self, addr: usize, val: u8) {
+    pub(crate) fn set(&mut self, addr: usize, val: u8) {
         self.data[addr] = val;
     }
 
-    pub fn fetch_next(&mut self) -> Result<u16, &str> {
+    pub(crate) fn fetch_next(&mut self) -> Result<u16, &str> {
         // need to read 2 bytes
         if self.pc + 1 >= self.data.len() {
             return Err("exceeded memory");
