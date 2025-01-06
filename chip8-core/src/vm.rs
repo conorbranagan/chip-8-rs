@@ -11,7 +11,6 @@ const NUM_REGISTERS: usize = 16;
 const ROM_START: usize = 0x200;
 
 struct Registers {
-    // Registers are V0 through VF
     data: [u8; NUM_REGISTERS],
     pc: usize,
 }
@@ -101,145 +100,136 @@ impl Chip8VM {
                 println!("Executing ExitSubroutine");
                 // Implement ExitSubroutine logic here
             }
-            Instruction::Jump { addr } => {
+            Instruction::Jump(addr) => {
                 println!("Jumping to address {:#X}", addr);
                 self.registers.pc = addr as usize;
             }
-            Instruction::CallSubroutine { addr } => {
+            Instruction::CallSubroutine(addr) => {
                 println!("Calling subroutine at address {:#X}", addr);
                 // Implement CallSubroutine logic here
             }
-            Instruction::SkipValEqual { reg, val } => {
-                println!("Skipping if register {} equals value {:#X}", reg, val);
-                let reg_val = self.registers.get(reg);
-                if val == reg_val {
+            Instruction::SkipValEqual(vx, val) => {
+                println!("Skipping if register {} equals value {:#X}", vx, val);
+                let vx_val = self.registers.get(vx);
+                if val == vx_val {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SkipValNotEqual { reg, val } => {
+            Instruction::SkipValNotEqual(vx, val) => {
                 println!(
                     "Skipping if register {} does not equal value {:#X}",
-                    reg, val
+                    vx, val
                 );
-                let reg_val = self.registers.get(reg);
-                if val != reg_val {
+                let vx_val: u8 = self.registers.get(vx);
+                if val != vx_val {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SkipRegEqual { reg1, reg2 } => {
-                println!("Skipping if register {} equals register {}", reg1, reg2);
-                // Implement SkipRegEqual logic here
-                let reg1_val = self.registers.get(reg1);
-                let reg2_val = self.registers.get(reg2);
-                if reg1_val == reg2_val {
+            Instruction::SkipRegEqual(vx, vy) => {
+                println!("Skipping if register {} equals register {}", vx, vy);
+                let vx_val = self.registers.get(vx);
+                let vy_val = self.registers.get(vy);
+                if vx_val == vy_val {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SetVal { reg, val } => {
-                println!("Setting register {0} to value {1:} ({1:#X})", reg, val);
-                self.registers.set(reg, val);
+            Instruction::SetVal(vx, val) => {
+                println!("Setting register {0} to value {1:} ({1:#X})", vx, val);
+                self.registers.set(vx, val);
             }
-            Instruction::AddVal { reg, val } => {
-                println!("Adding value {:#X} to register {}", val, reg);
-                self.registers.add(reg, val);
+            Instruction::AddVal(vx, val) => {
+                println!("Adding value {:#X} to register {}", val, vx);
+                self.registers.add(vx, val);
             }
-            Instruction::SetReg { reg1, reg2 } => {
-                println!(
-                    "Setting register {} to the value of register {}",
-                    reg1, reg2
-                );
-                let reg_val = self.registers.get(reg2);
-                self.registers.set(reg1, reg_val);
+            Instruction::SetReg(vx, vy) => {
+                println!("Setting register {} to the value of register {}", vx, vy);
+                let reg_val = self.registers.get(vy);
+                self.registers.set(vx, reg_val);
             }
-            Instruction::OR { reg1, reg2 } => {
-                println!("ORing register {} with register {}", reg1, reg2);
-                let reg1_val = self.registers.get(reg1);
-                let reg2_val = self.registers.get(reg2);
-                self.registers.set(reg1, reg1_val | reg2_val);
+            Instruction::OR(vx, vy) => {
+                println!("ORing register {} with register {}", vx, vy);
+                let vx_val = self.registers.get(vx);
+                let vy_val = self.registers.get(vy);
+                self.registers.set(vx, vx_val | vy_val);
             }
-            Instruction::AND { reg1, reg2 } => {
-                println!("ANDing register {} with register {}", reg1, reg2);
-                let reg1_val = self.registers.get(reg1);
-                let reg2_val = self.registers.get(reg2);
-                self.registers.set(reg1, reg1_val & reg2_val);
+            Instruction::AND(vx, vy) => {
+                println!("ANDing register {} with register {}", vx, vy);
+                let vx_val = self.registers.get(vx);
+                let vy_val = self.registers.get(vy);
+                self.registers.set(vx, vx_val & vy_val);
             }
-            Instruction::XOR { reg1, reg2 } => {
-                println!("XORing register {} with register {}", reg1, reg2);
-                let reg1_val = self.registers.get(reg1);
-                let reg2_val = self.registers.get(reg2);
-                self.registers.set(reg1, reg1_val ^ reg2_val);
+            Instruction::XOR(vx, vy) => {
+                println!("XORing register {} with register {}", vx, vy);
+                let vx_val = self.registers.get(vx);
+                let vy_val = self.registers.get(vy);
+                self.registers.set(vx, vx_val ^ vy_val);
             }
-            Instruction::Add { reg1, reg2 } => {
-                println!("Adding register {} to register {}", reg2, reg1);
-                let reg2_val = self.registers.get(reg2);
-                self.registers.add(reg1, reg2_val);
+            Instruction::Add(vx, vy) => {
+                println!("Adding register {} to register {}", vy, vx);
+                let vy_val = self.registers.get(vy);
+                self.registers.add(vx, vy_val);
 
-                // need to set carry in case of overflow
-                let reg1_val = self.registers.get(reg1);
-                if (reg1_val as u32) + (reg2_val as u32) > 255 {
+                // Set carry flag for overflow
+                let vx_val = self.registers.get(vx);
+                if (vx_val as u32) + (vy_val as u32) > 255 {
                     self.registers.set(0xF, 1);
                 } else {
                     self.registers.set(0xF, 0);
                 }
             }
-            Instruction::Sub { reg1, reg2 } => {
-                println!("Adding register {} to register {}", reg2, reg1);
-                let reg1_val = self.registers.get(reg1);
-                let reg2_val = self.registers.get(reg2);
-                self.registers.sub(reg1, reg2_val);
+            Instruction::Sub(vx, vy) => {
+                println!("Subtracting register {} from register {}", vy, vx);
+                let vx_val = self.registers.get(vx);
+                let vy_val = self.registers.get(vy);
+                self.registers.sub(vx, vy_val);
 
-                // set carry to handle underflow
-                if reg1_val > reg2_val {
+                // Set carry flag for underflow
+                if vx_val > vy_val {
                     self.registers.set(0xF, 1);
-                } else if reg1_val < reg2_val {
+                } else {
                     self.registers.set(0xF, 0);
                 }
             }
-            Instruction::ShiftRight { reg1, reg2: _ } => {
-                // Use later implementation that ignores reg2
-                println!("Shifting register {}", reg1);
-                let reg_val = self.registers.get(reg1);
-                self.registers.set(reg1, reg_val >> 1);
-                self.registers.set(0xF, reg_val & 0x00F);
+            Instruction::ShiftRight(vx, _) => {
+                println!("Shifting register {} right", vx);
+                let reg_val = self.registers.get(vx);
+                self.registers.set(vx, reg_val >> 1);
+                self.registers.set(0xF, reg_val & 1);
             }
-            Instruction::ShiftLeft { reg1, reg2: _ } => {
-                // Use later implementation that ignores reg2
-                println!("Shifting register {}", reg1);
-                let reg_val = self.registers.get(reg1);
-                self.registers.set(reg1, reg_val << 1);
-                self.registers.set(0xF, (reg_val >> 4) & 0x00F);
+            Instruction::ShiftLeft(vx, _) => {
+                println!("Shifting register {} left", vx);
+                let reg_val = self.registers.get(vx);
+                self.registers.set(vx, reg_val << 1);
+                self.registers.set(0xF, (reg_val >> 7) & 1);
             }
-            Instruction::SkipRegNotEqual { reg1, reg2 } => {
-                println!(
-                    "Skipping if register {} does not equal register {}",
-                    reg1, reg2
-                );
-                let reg1_val = self.registers.get(reg1);
-                let reg2_val = self.registers.get(reg2);
-                if reg1_val != reg2_val {
+            Instruction::SkipRegNotEqual(vx, vy) => {
+                println!("Skipping if register {} does not equal register {}", vx, vy);
+                let vx_val = self.registers.get(vx);
+                let vy_val = self.registers.get(vy);
+                if vx_val != vy_val {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SetIndex { val } => {
+            Instruction::SetIndex(val) => {
                 println!("Setting index register to {:#X}", val);
                 self.index_register = val as usize;
             }
-            Instruction::JumpOffset { val } => {
+            Instruction::JumpOffset(val) => {
                 println!("Jumping to address with offset {:#X}", val);
-                self.registers.pc = self.registers.get(0) as usize;
+                self.registers.pc = (self.registers.get(0) as usize + val as usize) & 0xFFF;
             }
-            Instruction::Random { reg, val } => {
+            Instruction::Random(vx, val) => {
                 println!(
                     "Generating random number for register {} with mask {:#X}",
-                    reg, val
+                    vx, val
                 );
-                let rand_val = rand::thread_rng().gen_range(0..255) as u8;
-                self.registers.set(0, rand_val & val);
+                let rand_val = rand::thread_rng().gen_range(0..=255) as u8;
+                self.registers.set(vx, rand_val & val);
             }
-            Instruction::Display { reg1, reg2, height } => {
+            Instruction::Display(vx, vy, height) => {
                 // Wrap coordinates around display.
-                let x_coord = self.registers.get(reg1);
-                let y_coord = self.registers.get(reg2);
+                let x_coord = self.registers.get(vx);
+                let y_coord = self.registers.get(vy);
                 println!(
                     "Displaying sprite at ({}, {}) with height {}",
                     x_coord, y_coord, height
@@ -271,40 +261,40 @@ impl Chip8VM {
                 self.registers.set(0xF, vf);
                 self.display.render();
             }
-            Instruction::SkipIfPressed { reg } => {
-                println!("Skipping if key in register {} is pressed", reg);
+            Instruction::SkipIfPressed(vx) => {
+                println!("Skipping if key in register {} is pressed", vx);
                 // Implement SkipIfPressed logic here
             }
-            Instruction::SkipNotPressed { reg } => {
-                println!("Skipping if key in register {} is not pressed", reg);
+            Instruction::SkipNotPressed(vx) => {
+                println!("Skipping if key in register {} is not pressed", vx);
                 // Implement SkipNotPressed logic here
             }
-            Instruction::GetDelayTimer { reg } => {
-                println!("Getting delay timer value into register {}", reg);
-                self.registers.set(reg, self.delay_timer);
+            Instruction::GetDelayTimer(vx) => {
+                println!("Getting delay timer value into register {}", vx);
+                self.registers.set(vx, self.delay_timer);
             }
-            Instruction::SetDelayTimer { reg } => {
-                println!("Setting delay timer to value in register {}", reg);
-                self.delay_timer = self.registers.get(reg)
+            Instruction::SetDelayTimer(vx) => {
+                println!("Setting delay timer to value in register {}", vx);
+                self.delay_timer = self.registers.get(vx)
             }
-            Instruction::SetSoundTimer { reg } => {
-                println!("Setting sound timer to value in register {}", reg);
-                self.sound_timer = self.registers.get(reg);
+            Instruction::SetSoundTimer(vx) => {
+                println!("Setting sound timer to value in register {}", vx);
+                self.sound_timer = self.registers.get(vx);
             }
-            Instruction::AddToIndex { reg } => {
-                println!("Adding register {} to index register", reg);
-                self.index_register += self.registers.get(reg) as usize;
+            Instruction::AddToIndex(vx) => {
+                println!("Adding register {} to index register", vx);
+                self.index_register += self.registers.get(vx) as usize;
             }
-            Instruction::GetKey { reg } => {
-                println!("Waiting for key press to store in register {}", reg);
+            Instruction::GetKey(vx) => {
+                println!("Waiting for key press to store in register {}", vx);
                 // Implement GetKey logic here
             }
-            Instruction::FontChar { reg } => {
-                println!("Setting index to font character for register {}", reg);
+            Instruction::FontChar(vx) => {
+                println!("Setting index to font character for register {}", vx);
                 // Implement FontChar logic here
             }
-            Instruction::BinDecConv { reg } => {
-                let val = self.registers.get(reg);
+            Instruction::BinDecConv(vx) => {
+                let val = self.registers.get(vx);
                 let (v1, v2, v3) = ((val / 100), (val / 10 % 10), (val % 10));
                 let idx = self.index_register;
                 self.memory.write(idx, v1);
@@ -312,23 +302,23 @@ impl Chip8VM {
                 self.memory.write(idx + 2, v3);
                 println!(
                     "Converting register {} to binary-coded decimal {} => ({}, {}, {})",
-                    reg, val, v1, v2, v3
+                    vx, val, v1, v2, v3
                 );
             }
-            Instruction::StoreMem { to_reg } => {
-                println!("Storing registers 0 through {} into memory", to_reg);
+            Instruction::StoreMem(vx) => {
+                println!("Storing registers 0 through {} into memory", vx);
                 let mut addr = self.index_register;
-                for reg in 0..=to_reg {
-                    self.memory.write(addr, self.registers.get(reg));
+                for vn in 0..=vx {
+                    self.memory.write(addr, self.registers.get(vn));
                     addr += 1;
                 }
             }
-            Instruction::LoadMem { to_reg } => {
-                println!("Loading memory into registers 0 through {}", to_reg);
+            Instruction::LoadMem(vx) => {
+                println!("Loading memory into registers 0 through {}", vx);
                 let mut addr = self.index_register;
-                for reg in 0..=to_reg {
+                for vn in 0..=vx {
                     let val = self.memory.read(addr);
-                    self.registers.set(reg, val);
+                    self.registers.set(vn, val);
                     addr += 1;
                 }
             }
@@ -343,7 +333,7 @@ mod tests {
     #[test]
     fn execute_set_val() {
         let mut vm: Chip8VM = Chip8VM::new();
-        vm.execute(Instruction::SetVal { reg: 1, val: 2 });
+        vm.execute(Instruction::SetVal(1, 2));
         assert_eq!(vm.registers.get(1), 2);
     }
 }

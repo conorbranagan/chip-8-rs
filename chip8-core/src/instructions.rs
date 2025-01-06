@@ -1,39 +1,44 @@
+type Addr = u16;
+type Vx = u8;
+type Vy = u8;
+type NN = u8;
+
 #[derive(Debug)]
 pub enum Instruction {
     Unknown(u16),
-    ClearScreen,                                // 00E0
-    ExitSubroutine,                             // 00EE
-    Jump { addr: u16 },                         // 1NNN
-    CallSubroutine { addr: u16 },               // 2NNN
-    SkipValEqual { reg: u8, val: u8 },          // 3XNN
-    SkipValNotEqual { reg: u8, val: u8 },       // 4XNN
-    SkipRegEqual { reg1: u8, reg2: u8 },        // 5XY0
-    SetVal { reg: u8, val: u8 },                // 6XNN
-    AddVal { reg: u8, val: u8 },                // 7XNN
-    SetReg { reg1: u8, reg2: u8 },              // 8XY0
-    OR { reg1: u8, reg2: u8 },                  // 8XY1
-    AND { reg1: u8, reg2: u8 },                 // 8XY2
-    XOR { reg1: u8, reg2: u8 },                 // 8XY3
-    Add { reg1: u8, reg2: u8 },                 // 8XY4
-    Sub { reg1: u8, reg2: u8 },                 // 8XY5, 8XY7
-    ShiftRight { reg1: u8, reg2: u8 },          // 8XY6
-    ShiftLeft { reg1: u8, reg2: u8 },           // 8XYE
-    SkipRegNotEqual { reg1: u8, reg2: u8 },     // 9XY0
-    SetIndex { val: u16 },                      // ANNN
-    JumpOffset { val: u16 },                    // BNNN
-    Random { reg: u8, val: u8 },                // CXNN
-    Display { reg1: u8, reg2: u8, height: u8 }, // DXYN
-    SkipIfPressed { reg: u8 },                  // EX9E
-    SkipNotPressed { reg: u8 },                 // EXA1
-    GetDelayTimer { reg: u8 },                  // FX07
-    SetDelayTimer { reg: u8 },                  // FX15
-    SetSoundTimer { reg: u8 },                  // FX18
-    AddToIndex { reg: u8 },                     // FX1E
-    GetKey { reg: u8 },                         // FX0A
-    FontChar { reg: u8 },                       // FX29
-    BinDecConv { reg: u8 },                     // FX33
-    StoreMem { to_reg: u8 },                    // FX55
-    LoadMem { to_reg: u8 },                     // FX65
+    ClearScreen,             // 00E0
+    ExitSubroutine,          // 00EE
+    Jump(Addr),              // 1NNN
+    CallSubroutine(Addr),    // 2NNN
+    SkipValEqual(Vx, NN),    // 3XNN
+    SkipValNotEqual(Vx, NN), // 4XNN
+    SkipRegEqual(Vx, Vy),    // 5XY0
+    SetVal(Vx, NN),          // 6XNN
+    AddVal(Vx, NN),          // 7XNN
+    SetReg(Vx, Vy),          // 8XY0
+    OR(Vx, Vy),              // 8XY1
+    AND(Vx, Vy),             // 8XY2
+    XOR(Vx, Vy),             // 8XY3
+    Add(Vx, Vy),             // 8XY4
+    Sub(Vx, Vy),             // 8XY5, 8XY7
+    ShiftRight(Vx, Vy),      // 8XY6
+    ShiftLeft(Vx, Vy),       // 8XYE
+    SkipRegNotEqual(Vx, Vy), // 9XY0
+    SetIndex(Addr),          // ANNN
+    JumpOffset(Addr),        // BNNN
+    Random(Vx, NN),          // CXNN
+    Display(Vx, Vy, u8),     // DXYN
+    SkipIfPressed(Vx),       // EX9E
+    SkipNotPressed(Vx),      // EXA1
+    GetDelayTimer(Vx),       // FX07
+    SetDelayTimer(Vx),       // FX15
+    SetSoundTimer(Vx),       // FX18
+    AddToIndex(Vx),          // FX1E
+    GetKey(Vx),              // FX0A
+    FontChar(Vx),            // FX29
+    BinDecConv(Vx),          // FX33
+    StoreMem(Vx),            // FX55
+    LoadMem(Vx),             // FX65
 }
 
 impl Instruction {
@@ -47,109 +52,45 @@ impl Instruction {
                 0xEE => ExitSubroutine,
                 _ => Unknown(instr),
             },
-            0x1 => Jump {
-                addr: instr & 0x0FFF,
-            },
-            0x2 => CallSubroutine {
-                addr: instr & 0x0FFF,
-            },
-            0x3 => SkipValEqual {
-                reg: d_reg1(instr),
-                val: d_val(instr),
-            },
-            0x4 => SkipValNotEqual {
-                reg: d_reg1(instr),
-                val: d_val(instr),
-            },
-            0x5 => SkipRegEqual {
-                reg1: d_reg1(instr),
-                reg2: d_reg2(instr),
-            },
-            0x6 => SetVal {
-                reg: d_reg1(instr),
-                val: d_val(instr),
-            },
-            0x7 => AddVal {
-                reg: d_reg1(instr),
-                val: d_val(instr),
-            },
+            0x1 => Jump(instr & 0x0FFF),
+            0x2 => CallSubroutine(instr & 0x0FFF),
+            0x3 => SkipValEqual(d_reg1(instr), d_val(instr)),
+            0x4 => SkipValNotEqual(d_reg1(instr), d_val(instr)),
+            0x5 => SkipRegEqual(d_reg1(instr), d_reg2(instr)),
+            0x6 => SetVal(d_reg1(instr), d_val(instr)),
+            0x7 => AddVal(d_reg1(instr), d_val(instr)),
             0x8 => match instr & 0x000F {
-                0x0 => SetReg {
-                    reg1: d_reg1(instr),
-                    reg2: d_reg2(instr),
-                },
-                0x1 => OR {
-                    reg1: d_reg1(instr),
-                    reg2: d_reg2(instr),
-                },
-                0x2 => AND {
-                    reg1: d_reg1(instr),
-                    reg2: d_reg2(instr),
-                },
-                0x3 => XOR {
-                    reg1: d_reg1(instr),
-                    reg2: d_reg2(instr),
-                },
-                0x4 => Add {
-                    reg1: d_reg1(instr),
-                    reg2: d_reg2(instr),
-                },
-                0x5 => Sub {
-                    reg1: d_reg1(instr),
-                    reg2: d_reg2(instr),
-                },
-                0x6 => ShiftRight {
-                    reg1: d_reg1(instr),
-                    reg2: d_reg2(instr),
-                },
-                0x7 => Sub {
-                    reg1: d_reg2(instr),
-                    reg2: d_reg1(instr),
-                },
-                0xE => ShiftLeft {
-                    reg1: d_reg1(instr),
-                    reg2: d_reg2(instr),
-                },
+                0x0 => SetReg(d_reg1(instr), d_reg2(instr)),
+                0x1 => OR(d_reg1(instr), d_reg2(instr)),
+                0x2 => AND(d_reg1(instr), d_reg2(instr)),
+                0x3 => XOR(d_reg1(instr), d_reg2(instr)),
+                0x4 => Add(d_reg1(instr), d_reg2(instr)),
+                0x5 => Sub(d_reg1(instr), d_reg2(instr)),
+                0x6 => ShiftRight(d_reg1(instr), d_reg2(instr)),
+                0x7 => Sub(d_reg2(instr), d_reg1(instr)),
+                0xE => ShiftLeft(d_reg1(instr), d_reg2(instr)),
                 _ => Unknown(instr),
             },
-            0x9 => SkipRegNotEqual {
-                reg1: d_reg1(instr),
-                reg2: d_reg2(instr),
-            },
-            0xA => SetIndex {
-                val: d_val16(instr),
-            },
-            0xB => JumpOffset {
-                val: d_val16(instr),
-            },
-            0xC => Random {
-                reg: d_reg1(instr),
-                val: d_val(instr),
-            },
-            0xD => Display {
-                reg1: d_reg1(instr),
-                reg2: d_reg2(instr),
-                height: (instr & 0x000F) as u8,
-            },
+            0x9 => SkipRegNotEqual(d_reg1(instr), d_reg2(instr)),
+            0xA => SetIndex(instr & 0x0FFF),
+            0xB => JumpOffset(instr & 0x0FFF),
+            0xC => Random(d_reg1(instr), d_val(instr)),
+            0xD => Display(d_reg1(instr), d_reg2(instr), (instr & 0x000F) as u8),
             0xE => match instr & 0x00FF {
-                0x9E => SkipIfPressed { reg: d_reg1(instr) },
-                0xA1 => SkipNotPressed { reg: d_reg1(instr) },
+                0x9E => SkipIfPressed(d_reg1(instr)),
+                0xA1 => SkipNotPressed(d_reg1(instr)),
                 _ => Unknown(instr),
             },
             0xF => match instr & 0x00FF {
-                0x07 => GetDelayTimer { reg: d_reg1(instr) },
-                0x15 => SetDelayTimer { reg: d_reg1(instr) },
-                0x18 => SetSoundTimer { reg: d_reg1(instr) },
-                0x1E => AddToIndex { reg: d_reg1(instr) },
-                0x0A => GetKey { reg: d_reg1(instr) },
-                0x29 => FontChar { reg: d_reg1(instr) },
-                0x33 => BinDecConv { reg: d_reg1(instr) },
-                0x55 => StoreMem {
-                    to_reg: d_reg1(instr),
-                },
-                0x65 => LoadMem {
-                    to_reg: d_reg1(instr),
-                },
+                0x07 => GetDelayTimer(d_reg1(instr)),
+                0x15 => SetDelayTimer(d_reg1(instr)),
+                0x18 => SetSoundTimer(d_reg1(instr)),
+                0x1E => AddToIndex(d_reg1(instr)),
+                0x0A => GetKey(d_reg1(instr)),
+                0x29 => FontChar(d_reg1(instr)),
+                0x33 => BinDecConv(d_reg1(instr)),
+                0x55 => StoreMem(d_reg1(instr)),
+                0x65 => LoadMem(d_reg1(instr)),
                 _ => Unknown(instr),
             },
             _ => Unknown(instr),
@@ -187,34 +128,34 @@ macro_rules! decode_tests {
 decode_tests! {
     t1:  0x00E0, Instruction::ClearScreen,
     t2:  0x00EE, Instruction::ExitSubroutine,
-    t3:  0x1EAF, Instruction::Jump { addr: 0x0EAF },
-    t4:  0x2FEA, Instruction::CallSubroutine{ addr: 0x0FEA},
-    t5:  0x324B, Instruction::SkipValEqual{reg: 0x2, val: 0x4B},
-    t6:  0x4401, Instruction::SkipValNotEqual{reg: 0x4, val: 0x01},
-    t7:  0x5230, Instruction::SkipRegEqual{reg1: 0x2, reg2: 0x3},
-    t8:  0x62F4, Instruction::SetVal{ reg: 2, val: 0xF4},
-    t9:  0x713F, Instruction::AddVal{ reg: 1, val: 0x3F},
-    t10: 0x8240, Instruction::SetReg{ reg1: 2, reg2: 4},
-    t11: 0x8231, Instruction::OR{ reg1: 2, reg2: 3},
-    t12: 0x8232, Instruction::AND{ reg1: 2, reg2: 3},
-    t13: 0x8233, Instruction::XOR{ reg1: 2, reg2: 3},
-    t14: 0x8234, Instruction::Add{ reg1: 2, reg2: 3},
-    t15: 0x8235, Instruction::Sub{ reg1: 2, reg2: 3},
-    t16: 0x8236, Instruction::ShiftRight{ reg1: 2, reg2: 3},
-    t17: 0x9230, Instruction::SkipRegNotEqual{ reg1: 2, reg2: 3},
-    t18: 0xA123, Instruction::SetIndex{ val: 0x0123},
-    t19: 0xB456, Instruction::JumpOffset{ val: 0x0456},
-    t20: 0xC3A5, Instruction::Random{ reg: 3, val: 0xA5},
-    t21: 0xD125, Instruction::Display{ reg1: 1, reg2: 2, height: 0x5},
-    t22: 0xE19E, Instruction::SkipIfPressed{ reg: 1},
-    t23: 0xE1A1, Instruction::SkipNotPressed{ reg: 1},
-    t24: 0xF107, Instruction::GetDelayTimer{ reg: 1},
-    t25: 0xF215, Instruction::SetDelayTimer{ reg: 2},
-    t26: 0xF318, Instruction::SetSoundTimer{ reg: 3},
-    t27: 0xF41E, Instruction::AddToIndex{ reg: 4},
-    t28: 0xF50A, Instruction::GetKey{ reg: 5},
-    t29: 0xF629, Instruction::FontChar{ reg: 6},
-    t30: 0xF733, Instruction::BinDecConv{ reg: 7},
-    t31: 0xF855, Instruction::StoreMem{ to_reg: 8},
-    t32: 0xF965, Instruction::LoadMem{ to_reg: 9},
+    t3:  0x1EAF, Instruction::Jump(0x0EAF),
+    t4:  0x2FEA, Instruction::CallSubroutine(0x0FEA),
+    t5:  0x324B, Instruction::SkipValEqual(0x2, 0x4B),
+    t6:  0x4401, Instruction::SkipValNotEqual(0x4, 0x01),
+    t7:  0x5230, Instruction::SkipRegEqual(0x2, 0x3),
+    t8:  0x62F4, Instruction::SetVal(2, 0xF4),
+    t9:  0x713F, Instruction::AddVal(1, 0x3F),
+    t10: 0x8240, Instruction::SetReg(2, 4),
+    t11: 0x8231, Instruction::OR(2, 3),
+    t12: 0x8232, Instruction::AND(2, 3),
+    t13: 0x8233, Instruction::XOR(2, 3),
+    t14: 0x8234, Instruction::Add(2, 3),
+    t15: 0x8235, Instruction::Sub(2, 3),
+    t16: 0x8236, Instruction::ShiftRight(2, 3),
+    t17: 0x9230, Instruction::SkipRegNotEqual(2, 3),
+    t18: 0xA123, Instruction::SetIndex(0x0123),
+    t19: 0xB456, Instruction::JumpOffset(0x0456),
+    t20: 0xC3A5, Instruction::Random(3, 0xA5),
+    t21: 0xD125, Instruction::Display(1, 2, 0x5),
+    t22: 0xE19E, Instruction::SkipIfPressed(1),
+    t23: 0xE1A1, Instruction::SkipNotPressed(1),
+    t24: 0xF107, Instruction::GetDelayTimer(1),
+    t25: 0xF215, Instruction::SetDelayTimer(2),
+    t26: 0xF318, Instruction::SetSoundTimer(3),
+    t27: 0xF41E, Instruction::AddToIndex(4),
+    t28: 0xF50A, Instruction::GetKey(5),
+    t29: 0xF629, Instruction::FontChar(6),
+    t30: 0xF733, Instruction::BinDecConv(7),
+    t31: 0xF855, Instruction::StoreMem(8),
+    t32: 0xF965, Instruction::LoadMem(9),
 }
