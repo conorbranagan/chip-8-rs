@@ -5,4 +5,5 @@ edition = "2021"
 
 
 [dependencies]
+tokio = { version = "1", features = ["full"] }
 chip8_core = { path = "../chip8-core" }

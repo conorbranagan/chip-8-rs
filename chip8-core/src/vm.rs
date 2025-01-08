@@ -87,6 +87,10 @@ impl Chip8VM {
         Ok(op)
     }
 
+    pub fn update_frame(&mut self) {
+        self.display.render();
+    }
+
     fn execute(&mut self, instr: Instruction) {
         match instr {
             Instruction::Unknown(code) => {
@@ -259,7 +263,6 @@ impl Chip8VM {
                     ireg += 1;
                 }
                 self.registers.set(0xF, vf);
-                self.display.render();
             }
             Instruction::SkipIfPressed(vx) => {
                 println!("Skipping if key in register {} is pressed", vx);
