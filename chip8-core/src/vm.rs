@@ -126,35 +126,36 @@ impl Chip8VM {
     }
 
     fn execute(&mut self, instr: Instruction) -> Result<(), VMError> {
+        use Instruction::*;
         match instr {
-            Instruction::Unknown(code) => {
+            Unknown(code) => {
                 debug!("Unknown instruction: {:#X}", code);
                 return Err(VMError::UnknownInstruction(code));
             }
-            Instruction::ClearScreen => {
+            ClearScreen => {
                 debug!("Executing ClearScreen");
                 self.display.clear();
             }
-            Instruction::ExitSubroutine => {
+            ExitSubroutine => {
                 debug!("Executing ExitSubroutine");
                 // TODO: Implement ExitSubroutine logic here
             }
-            Instruction::Jump(addr) => {
+            Jump(addr) => {
                 debug!("Jumping to address {:#X}", addr);
                 self.registers.pc = addr as usize;
             }
-            Instruction::CallSubroutine(addr) => {
+            CallSubroutine(addr) => {
                 debug!("Calling subroutine at address {:#X}", addr);
                 // TODO: Implement CallSubroutine logic here
             }
-            Instruction::SkipValEqual(vx, val) => {
+            SkipValEqual(vx, val) => {
                 debug!("Skipping if register {} equals value {:#X}", vx, val);
                 let vx_val = self.registers.get(vx);
                 if val == vx_val {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SkipValNotEqual(vx, val) => {
+            SkipValNotEqual(vx, val) => {
                 debug!(
                     "Skipping if register {} does not equal value {:#X}",
                     vx, val
@@ -164,7 +165,7 @@ impl Chip8VM {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SkipRegEqual(vx, vy) => {
+            SkipRegEqual(vx, vy) => {
                 debug!("Skipping if register {} equals register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
@@ -172,38 +173,38 @@ impl Chip8VM {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SetVal(vx, val) => {
+            SetVal(vx, val) => {
                 debug!("Setting register {0} to value {1:} ({1:#X})", vx, val);
                 self.registers.set(vx, val);
             }
-            Instruction::AddVal(vx, val) => {
+            AddVal(vx, val) => {
                 debug!("Adding value {:#X} to register {}", val, vx);
                 self.registers.add(vx, val);
             }
-            Instruction::SetReg(vx, vy) => {
+            SetReg(vx, vy) => {
                 debug!("Setting register {} to the value of register {}", vx, vy);
                 let reg_val = self.registers.get(vy);
                 self.registers.set(vx, reg_val);
             }
-            Instruction::OR(vx, vy) => {
+            OR(vx, vy) => {
                 debug!("ORing register {} with register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.set(vx, vx_val | vy_val);
             }
-            Instruction::AND(vx, vy) => {
+            AND(vx, vy) => {
                 debug!("ANDing register {} with register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.set(vx, vx_val & vy_val);
             }
-            Instruction::XOR(vx, vy) => {
+            XOR(vx, vy) => {
                 debug!("XORing register {} with register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.set(vx, vx_val ^ vy_val);
             }
-            Instruction::Add(vx, vy) => {
+            Add(vx, vy) => {
                 debug!("Adding register {} to register {}", vy, vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.add(vx, vy_val);
@@ -216,7 +217,7 @@ impl Chip8VM {
                     self.registers.set(0xF, 0);
                 }
             }
-            Instruction::Sub(vx, vy) => {
+            Sub(vx, vy) => {
                 debug!("Subtracting register {} from register {}", vy, vx);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
@@ -229,19 +230,19 @@ impl Chip8VM {
                     self.registers.set(0xF, 0);
                 }
             }
-            Instruction::ShiftRight(vx, _) => {
+            ShiftRight(vx, _) => {
                 debug!("Shifting register {} right", vx);
                 let reg_val = self.registers.get(vx);
                 self.registers.set(vx, reg_val >> 1);
                 self.registers.set(0xF, reg_val & 1);
             }
-            Instruction::ShiftLeft(vx, _) => {
+            ShiftLeft(vx, _) => {
                 debug!("Shifting register {} left", vx);
                 let reg_val = self.registers.get(vx);
                 self.registers.set(vx, reg_val << 1);
                 self.registers.set(0xF, (reg_val >> 7) & 1);
             }
-            Instruction::SkipRegNotEqual(vx, vy) => {
+            SkipRegNotEqual(vx, vy) => {
                 debug!("Skipping if register {} does not equal register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
@@ -249,15 +250,15 @@ impl Chip8VM {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SetIndex(val) => {
+            SetIndex(val) => {
                 debug!("Setting index register to {:#X}", val);
                 self.index_register = val as usize;
             }
-            Instruction::JumpOffset(val) => {
+            JumpOffset(val) => {
                 debug!("Jumping to address with offset {:#X}", val);
                 self.registers.pc = (self.registers.get(0) as usize + val as usize) & 0xFFF;
             }
-            Instruction::Random(vx, val) => {
+            Random(vx, val) => {
                 debug!(
                     "Generating random number for register {} with mask {:#X}",
                     vx, val
@@ -265,7 +266,7 @@ impl Chip8VM {
                 let rand_val = rand::thread_rng().gen_range(0..=255) as u8;
                 self.registers.set(vx, rand_val & val);
             }
-            Instruction::Display(vx, vy, height) => {
+            Display(vx, vy, height) => {
                 // Wrap coordinates around display.
                 let x_coord = self.registers.get(vx);
                 let y_coord = self.registers.get(vy);
@@ -299,46 +300,47 @@ impl Chip8VM {
                 }
                 self.registers.set(0xF, vf);
             }
-            Instruction::SkipIfPressed(vx) => {
+            SkipIfPressed(vx) => {
                 debug!("Skipping if key in register {} is pressed", vx);
                 let vx_val: u8 = self.registers.get(vx);
-                if vx_val == self.keypad.pressed() as u8 {
+                let key: Key = Key::try_from(vx_val)?;
+                if self.keypad[key] == KeyState::Pressed {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::SkipNotPressed(vx) => {
+            SkipNotPressed(vx) => {
                 debug!("Skipping if key in register {} is not pressed", vx);
                 let vx_val: u8 = self.registers.get(vx);
-                if vx_val != self.keypad.pressed() as u8 {
+                let key: Key = Key::try_from(vx_val)?;
+                if self.keypad[key] == KeyState::Pressed {
                     self.registers.pc += 2;
                 }
             }
-            Instruction::GetDelayTimer(vx) => {
+            GetDelayTimer(vx) => {
                 debug!("Getting delay timer value into register {}", vx);
                 self.registers.set(vx, self.delay_timer);
             }
-            Instruction::SetDelayTimer(vx) => {
+            SetDelayTimer(vx) => {
                 debug!("Setting delay timer to value in register {}", vx);
                 self.delay_timer = self.registers.get(vx)
             }
-            Instruction::SetSoundTimer(vx) => {
+            SetSoundTimer(vx) => {
                 debug!("Setting sound timer to value in register {}", vx);
                 self.sound_timer = self.registers.get(vx);
             }
-            Instruction::AddToIndex(vx) => {
+            AddToIndex(vx) => {
                 debug!("Adding register {} to index register", vx);
                 self.index_register += self.registers.get(vx) as usize;
             }
-            Instruction::GetKey(vx) => {
+            GetKey(vx) => {
                 debug!("Waiting for key press to store in register {}", vx);
                 // TODO: Implement GetKey logic here
-                self.registers.set(vx, self.keypad.pressed() as u8);
             }
-            Instruction::FontChar(vx) => {
+            FontChar(vx) => {
                 debug!("Setting index to font character for register {}", vx);
                 // TODO: Implement FontChar logic here
             }
-            Instruction::BinDecConv(vx) => {
+            BinDecConv(vx) => {
                 let val = self.registers.get(vx);
                 let (v1, v2, v3) = ((val / 100), (val / 10 % 10), (val % 10));
                 let idx = self.index_register;
@@ -350,7 +352,7 @@ impl Chip8VM {
                     vx, val, v1, v2, v3
                 );
             }
-            Instruction::StoreMem(vx) => {
+            StoreMem(vx) => {
                 debug!("Storing registers 0 through {} into memory", vx);
                 let mut addr = self.index_register;
                 for vn in 0..=vx {
@@ -358,7 +360,7 @@ impl Chip8VM {
                     addr += 1;
                 }
             }
-            Instruction::LoadMem(vx) => {
+            LoadMem(vx) => {
                 debug!("Loading memory into registers 0 through {}", vx);
                 let mut addr = self.index_register;
                 for vn in 0..=vx {
