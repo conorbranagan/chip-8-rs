@@ -7,6 +7,7 @@ use thiserror::Error;
 
 use crate::display::Display;
 use crate::instructions::Instruction;
+use crate::keypad::Keypad;
 use crate::memory::{Memory, Stack};
 
 const NUM_REGISTERS: usize = 16;
@@ -65,10 +66,10 @@ pub struct Chip8VM {
     display: Display,
     registers: Registers,
     stack: Stack,
+    keypad: Keypad,
     index_register: usize,
     delay_timer: u8,
     sound_timer: u8,
-    key_pressed: u8,
 }
 
 impl Chip8VM {
@@ -87,10 +88,10 @@ impl Chip8VM {
             display: Display::new(),
             registers: Registers::new(),
             stack: Stack::default(),
+            keypad: Keypad::new(),
             index_register: 0,
             delay_timer: 0,
             sound_timer: 0,
-            key_pressed: 0x0,
         })
     }
 
@@ -136,7 +137,7 @@ impl Chip8VM {
             }
             Instruction::ExitSubroutine => {
                 debug!("Executing ExitSubroutine");
-                // Implement ExitSubroutine logic here
+                // TODO: Implement ExitSubroutine logic here
             }
             Instruction::Jump(addr) => {
                 debug!("Jumping to address {:#X}", addr);
@@ -144,7 +145,7 @@ impl Chip8VM {
             }
             Instruction::CallSubroutine(addr) => {
                 debug!("Calling subroutine at address {:#X}", addr);
-                // Implement CallSubroutine logic here
+                // TODO: Implement CallSubroutine logic here
             }
             Instruction::SkipValEqual(vx, val) => {
                 debug!("Skipping if register {} equals value {:#X}", vx, val);
@@ -300,11 +301,17 @@ impl Chip8VM {
             }
             Instruction::SkipIfPressed(vx) => {
                 debug!("Skipping if key in register {} is pressed", vx);
-                // Implement SkipIfPressed logic here
+                let vx_val: u8 = self.registers.get(vx);
+                if vx_val == self.keypad.pressed() as u8 {
+                    self.registers.pc += 2;
+                }
             }
             Instruction::SkipNotPressed(vx) => {
                 debug!("Skipping if key in register {} is not pressed", vx);
-                // Implement SkipNotPressed logic here
+                let vx_val: u8 = self.registers.get(vx);
+                if vx_val != self.keypad.pressed() as u8 {
+                    self.registers.pc += 2;
+                }
             }
             Instruction::GetDelayTimer(vx) => {
                 debug!("Getting delay timer value into register {}", vx);
@@ -324,11 +331,12 @@ impl Chip8VM {
             }
             Instruction::GetKey(vx) => {
                 debug!("Waiting for key press to store in register {}", vx);
-                // Implement GetKey logic here
+                // TODO: Implement GetKey logic here
+                self.registers.set(vx, self.keypad.pressed() as u8);
             }
             Instruction::FontChar(vx) => {
                 debug!("Setting index to font character for register {}", vx);
-                // Implement FontChar logic here
+                // TODO: Implement FontChar logic here
             }
             Instruction::BinDecConv(vx) => {
                 let val = self.registers.get(vx);
