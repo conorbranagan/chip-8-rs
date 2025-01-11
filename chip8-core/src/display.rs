@@ -1,4 +1,4 @@
-pub(crate) struct Display {
+pub struct Display {
     pixels: [[bool; Display::WIDTH]; Display::HEIGHT],
 }
 
@@ -29,6 +29,10 @@ impl Display {
 
     pub(crate) fn clear(&mut self) {
         self.pixels = [[false; Display::WIDTH]; Display::HEIGHT];
+    }
+
+    pub(crate) fn get_framebuffer(&mut self) -> &[bool] {
+        self.pixels.as_flattened()
     }
 
     pub(crate) fn render(&mut self) {

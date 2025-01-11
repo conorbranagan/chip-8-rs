@@ -1,13 +1,19 @@
 use std::{env, sync::Arc};
 
+use chip8_core::display::Display;
 use chip8_core::vm::Chip8VM;
-use tokio::sync::{mpsc, Mutex};
-use tokio::task;
+use pixels::{Pixels, SurfaceTexture};
+use winit::application::ApplicationHandler;
+use winit::dpi::LogicalSize;
+use winit::event::{KeyEvent, WindowEvent};
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::window::Window;
 
-const HZ: u64 = 60; // Equivalent to 5 minutes
+const HZ: u64 = 60;
+const WINDOW_WIDTH: u32 = 512;
+const WINDOW_HEIGHT: u32 = 256;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         println!("Usage: chip8 <path/to/rom.ch8>");
@@ -15,66 +21,120 @@ async fn main() {
     }
 
     let rom_path = args.get(1).unwrap();
-    let mut emu = Emulator::new(rom_path.to_string()).await;
+    let mut emu = Emulator::new(rom_path.to_string());
 
-    for _ in 0..350 {
-        emu.run_cycle().await;
-    }
-    emu.shutdown().await;
+    let event_loop: EventLoop<()> = EventLoop::new().unwrap();
+    event_loop.set_control_flow(ControlFlow::Poll);
+    let _ = event_loop.run_app(&mut emu);
 }
 
-enum EmulatorMessage {
-    UpdateDisplay,
-    Shutdown,
-}
 
 struct Emulator {
-    vm: Arc<Mutex<Chip8VM>>,
-    display_tx: mpsc::Sender<EmulatorMessage>,
-    cycles: Arc<Mutex<u64>>,
+    window: Option<Arc<Window>>,
+    pixels: Option<Pixels<'static>>,
+    vm: Chip8VM,
+    cycles: u64,
 }
 
 impl Emulator {
-    async fn new(rom_path: String) -> Emulator {
-        let vm = Arc::new(Mutex::new(Chip8VM::new()));
-        vm.lock().await.load_rom(&rom_path);
+    fn new(rom_path: String) -> Self {
+        let mut vm = Chip8VM::new();
+        vm.load_rom(&rom_path);
         println!("Loaded {} into memory", rom_path);
 
-        let (display_tx, mut display_rx) = mpsc::channel::<EmulatorMessage>(10);
-        let display_vm = Arc::clone(&vm);
-        task::spawn(async move {
-            while let Some(msg) = display_rx.recv().await {
-                match msg {
-                    EmulatorMessage::UpdateDisplay => {
-                        let mut vm = display_vm.lock().await;
-                        vm.update_frame();
-                    }
-                    EmulatorMessage::Shutdown => {
-                        break;
+        Self {
+            pixels: None,
+            vm: vm,
+            cycles: 0,
+            window: None,
+        }
+    }
+
+    fn run_cycle(&mut self) {
+        self.vm.execute_next().unwrap();
+        self.cycles += 1;
+        if self.cycles % HZ == 0 {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+    }
+
+    fn draw_frame(&mut self) {
+        if let Some(pixels) = &mut self.pixels {
+            let vm_frame = &self.vm.get_framebuffer();
+
+            // Each pixel is 4 bytes (rbga) so we chunk and map from bool buf -> pixels.
+            for (i, pixel) in pixels.frame_mut().chunks_exact_mut(4).enumerate() {
+                let vm_pixel = vm_frame[i];
+                let rgba = if vm_pixel {
+                    [0x5e, 0x48, 0xe8, 0xff]
+                } else {
+                    [0x0, 0x0, 0x0, 0xff]
+                };
+                pixel.copy_from_slice(&rgba);
+            }
+            pixels.render().unwrap();
+        }
+    }
+}
+
+impl ApplicationHandler for Emulator {
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let window_attributes = Window::default_attributes()
+                .with_title("Chip-8 Emulator")
+                .with_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT))
+                .with_min_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
+        let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
+        let pixels = {
+            let window_size = window.inner_size();
+            let surface_texture =
+                SurfaceTexture::new(window_size.width, window_size.height, window.clone());
+            Pixels::new(Display::WIDTH as u32, Display::HEIGHT as u32, surface_texture).unwrap()
+        };
+
+        self.window = Some(window.clone());
+        self.pixels = Some(pixels);
+    }
+
+    fn window_event(
+            &mut self,
+            event_loop: &winit::event_loop::ActiveEventLoop,
+            _window_id: winit::window::WindowId,
+            event: winit::event::WindowEvent,
+        ) {
+            match event {
+                WindowEvent::CloseRequested => {
+                    println!("The close button was pressed; stopping");
+                    event_loop.exit();
+                },
+                WindowEvent::Resized(size) => {
+                    if let Some(pixels) = &mut self.pixels {
+                        if let Err(err) = pixels.resize_surface(size.width, size.height) {
+                            println!("pixels.resize_surface: {:?}", err);
+                            event_loop.exit();
+                            return;        
+                        }
                     }
                 }
+                WindowEvent::RedrawRequested => {   
+                    self.draw_frame();
+    
+                    // You only need to call this if you've determined that you need to redraw in
+                    // applications which do not always need to. Applications that redraw continuously
+                    // can render here instead.
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }        
+                },
+                WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {
+                    // TODO
+                },
+                _ => (),
             }
-        });
-
-        Emulator {
-            vm: vm,
-            display_tx,
-            cycles: Arc::new(Mutex::new(0)),
-        }
     }
 
-    async fn run_cycle(&mut self) {
-        let mut vm = self.vm.lock().await;
-        vm.execute_next().unwrap();
-
-        let mut cycles = self.cycles.lock().await;
-        *cycles += 1;
-        if *cycles % HZ == 0 {
-            let _ = self.display_tx.try_send(EmulatorMessage::UpdateDisplay);
-        }
-    }
-
-    async fn shutdown(&mut self) {
-        let _ = self.display_tx.try_send(EmulatorMessage::Shutdown);
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.run_cycle();
     }
 }

@@ -87,8 +87,8 @@ impl Chip8VM {
         Ok(op)
     }
 
-    pub fn update_frame(&mut self) {
-        self.display.render();
+    pub fn get_framebuffer(&mut self) -> &[bool] {
+        self.display.get_framebuffer()
     }
 
     fn execute(&mut self, instr: Instruction) {

@@ -5,5 +5,8 @@ edition = "2021"
 
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+winit = "0.30.8"
+winit_input_helper = "0.15"
+pixels = "0.15.0"
+log = "0.4"
 chip8_core = { path = "../chip8-core" }
