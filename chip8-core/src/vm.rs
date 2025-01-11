@@ -3,6 +3,7 @@ use rand::Rng;
 use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
 use std::fs::{self, File};
 use std::num::Wrapping;
+use std::ops::{Index, IndexMut};
 use thiserror::Error;
 
 use crate::display::Display;
@@ -37,20 +38,14 @@ struct Registers {
     pc: usize,
 }
 
+type RegNum = u8;
+
 impl Registers {
     fn new() -> Registers {
         return Registers {
             data: [0; NUM_REGISTERS],
             pc: ROM_START,
         };
-    }
-
-    pub fn get(&mut self, reg: u8) -> u8 {
-        self.data[reg as usize]
-    }
-
-    pub fn set(&mut self, reg: u8, val: u8) {
-        self.data[reg as usize] = val;
     }
 
     pub fn add(&mut self, reg: u8, val: u8) {
@@ -61,6 +56,19 @@ impl Registers {
     pub fn sub(&mut self, reg: u8, val: u8) {
         let reg_val = self.data[reg as usize];
         self.data[reg as usize] = (Wrapping(reg_val) - Wrapping(val)).0;
+    }
+}
+
+impl Index<RegNum> for Registers {
+    type Output = u8;
+    fn index(&self, index: RegNum) -> &Self::Output {
+        &self.data[index as usize]
+    }
+}
+
+impl IndexMut<RegNum> for Registers {
+    fn index_mut(&mut self, index: RegNum) -> &mut Self::Output {
+        &mut self.data[index as usize]
     }
 }
 
@@ -153,102 +161,90 @@ impl Chip8VM {
             }
             SkipValEqual(vx, val) => {
                 debug!("Skipping if register {} equals value {:#X}", vx, val);
-                let vx_val = self.registers.get(vx);
-                if val == vx_val {
+                if val == self.registers[vx] {
                     self.registers.pc += 2;
                 }
             }
             SkipValNotEqual(vx, val) => {
-                debug!(
-                    "Skipping if register {} does not equal value {:#X}",
-                    vx, val
-                );
-                let vx_val: u8 = self.registers.get(vx);
-                if val != vx_val {
+                debug!("Skipping if register {} != {:#X}", vx, val);
+                if val != self.registers[vx] {
                     self.registers.pc += 2;
                 }
             }
             SkipRegEqual(vx, vy) => {
                 debug!("Skipping if register {} equals register {}", vx, vy);
-                let vx_val = self.registers.get(vx);
-                let vy_val = self.registers.get(vy);
-                if vx_val == vy_val {
+                if self.registers[vx] == self.registers[vy] {
                     self.registers.pc += 2;
                 }
             }
             SetVal(vx, val) => {
                 debug!("Setting register {0} to value {1:} ({1:#X})", vx, val);
-                self.registers.set(vx, val);
+                self.registers[vx] = val;
             }
             AddVal(vx, val) => {
                 debug!("Adding value {:#X} to register {}", val, vx);
-                self.registers.add(vx, val);
+                self.registers[vx] += val;
             }
             SetReg(vx, vy) => {
                 debug!("Setting register {} to the value of register {}", vx, vy);
-                let reg_val = self.registers.get(vy);
-                self.registers.set(vx, reg_val);
+                self.registers[vx] = self.registers[vy];
             }
             OR(vx, vy) => {
                 debug!("ORing register {} with register {}", vx, vy);
-                let vx_val = self.registers.get(vx);
-                let vy_val = self.registers.get(vy);
-                self.registers.set(vx, vx_val | vy_val);
+                let vx_val = self.registers[vx];
+                let vy_val = self.registers[vy];
+                self.registers[vx] = vx_val | vy_val;
             }
             AND(vx, vy) => {
                 debug!("ANDing register {} with register {}", vx, vy);
-                let vx_val = self.registers.get(vx);
-                let vy_val = self.registers.get(vy);
-                self.registers.set(vx, vx_val & vy_val);
+                self.registers[vx] &= self.registers[vy];
             }
             XOR(vx, vy) => {
                 debug!("XORing register {} with register {}", vx, vy);
-                let vx_val = self.registers.get(vx);
-                let vy_val = self.registers.get(vy);
-                self.registers.set(vx, vx_val ^ vy_val);
+                self.registers[vx] ^= self.registers[vy];
             }
             Add(vx, vy) => {
                 debug!("Adding register {} to register {}", vy, vx);
-                let vy_val = self.registers.get(vy);
+                let vy_val = self.registers[vy];
                 self.registers.add(vx, vy_val);
 
                 // Set carry flag for overflow
-                let vx_val = self.registers.get(vx);
+                let vx_val = self.registers[vx];
                 if (vx_val as u32) + (vy_val as u32) > 255 {
-                    self.registers.set(0xF, 1);
+                    self.registers[0xF] = 1;
                 } else {
-                    self.registers.set(0xF, 0);
+                    self.registers[0xF] = 0;
                 }
             }
             Sub(vx, vy) => {
                 debug!("Subtracting register {} from register {}", vy, vx);
-                let vx_val = self.registers.get(vx);
-                let vy_val = self.registers.get(vy);
+                let vx_val = self.registers[vx];
+                let vy_val = self.registers[vy];
                 self.registers.sub(vx, vy_val);
 
                 // Set carry flag for underflow
                 if vx_val > vy_val {
-                    self.registers.set(0xF, 1);
+                    self.registers[0xF] = 1;
                 } else {
-                    self.registers.set(0xF, 0);
+                    self.registers[0xF] = 0;
                 }
             }
             ShiftRight(vx, _) => {
                 debug!("Shifting register {} right", vx);
-                let reg_val = self.registers.get(vx);
-                self.registers.set(vx, reg_val >> 1);
-                self.registers.set(0xF, reg_val & 1);
+                let reg_val = self.registers[vx];
+                self.registers[vx] = reg_val >> 1;
+                self.registers[0xF] = reg_val & 1;
             }
             ShiftLeft(vx, _) => {
                 debug!("Shifting register {} left", vx);
-                let reg_val = self.registers.get(vx);
-                self.registers.set(vx, reg_val << 1);
-                self.registers.set(0xF, (reg_val >> 7) & 1);
+                let reg_val = self.registers[vx];
+                self.registers[vx] = reg_val << 1;
+                self.registers[0xF] = (reg_val >> 7) & 1;
             }
             SkipRegNotEqual(vx, vy) => {
                 debug!("Skipping if register {} does not equal register {}", vx, vy);
-                let vx_val = self.registers.get(vx);
-                let vy_val = self.registers.get(vy);
+                let vx_val = self.registers[vx];
+                let vy_val = self.registers[vy];
                 if vx_val != vy_val {
                     self.registers.pc += 2;
                 }
@@ -259,7 +255,7 @@ impl Chip8VM {
             }
             JumpOffset(val) => {
                 debug!("Jumping to address with offset {:#X}", val);
-                self.registers.pc = (self.registers.get(0) as usize + val as usize) & 0xFFF;
+                self.registers.pc = (self.registers[0x0] as usize + val as usize) & 0xFFF;
             }
             Random(vx, val) => {
                 debug!(
@@ -267,12 +263,12 @@ impl Chip8VM {
                     vx, val
                 );
                 let rand_val = rand::thread_rng().gen_range(0..=255) as u8;
-                self.registers.set(vx, rand_val & val);
+                self.registers[vx] = rand_val & val;
             }
             Display(vx, vy, height) => {
                 // Wrap coordinates around display.
-                let x_coord = self.registers.get(vx);
-                let y_coord = self.registers.get(vy);
+                let x_coord = self.registers[vx];
+                let y_coord = self.registers[vy];
                 debug!(
                     "Displaying sprite at ({}, {}) with height {}",
                     x_coord, y_coord, height
@@ -301,11 +297,11 @@ impl Chip8VM {
                     }
                     ireg += 1;
                 }
-                self.registers.set(0xF, vf);
+                self.registers[0xF] = vf;
             }
             SkipIfPressed(vx) => {
                 debug!("Skipping if key in register {} is pressed", vx);
-                let vx_val: u8 = self.registers.get(vx);
+                let vx_val: u8 = self.registers[vx];
                 let key: Key = Key::try_from(vx_val)?;
                 if self.keypad[key] == KeyState::Pressed {
                     self.registers.pc += 2;
@@ -313,7 +309,7 @@ impl Chip8VM {
             }
             SkipNotPressed(vx) => {
                 debug!("Skipping if key in register {} is not pressed", vx);
-                let vx_val: u8 = self.registers.get(vx);
+                let vx_val: u8 = self.registers[vx];
                 let key: Key = Key::try_from(vx_val)?;
                 if self.keypad[key] == KeyState::Pressed {
                     self.registers.pc += 2;
@@ -321,19 +317,19 @@ impl Chip8VM {
             }
             GetDelayTimer(vx) => {
                 debug!("Getting delay timer value into register {}", vx);
-                self.registers.set(vx, self.delay_timer);
+                self.registers[vx] = self.delay_timer;
             }
             SetDelayTimer(vx) => {
                 debug!("Setting delay timer to value in register {}", vx);
-                self.delay_timer = self.registers.get(vx)
+                self.delay_timer = self.registers[vx];
             }
             SetSoundTimer(vx) => {
                 debug!("Setting sound timer to value in register {}", vx);
-                self.sound_timer = self.registers.get(vx);
+                self.sound_timer = self.registers[vx];
             }
             AddToIndex(vx) => {
                 debug!("Adding register {} to index register", vx);
-                self.index_register += self.registers.get(vx) as usize;
+                self.index_register += self.registers[vx] as usize;
             }
             GetKey(vx) => {
                 debug!("Waiting for key press to store in register {}", vx);
@@ -344,7 +340,7 @@ impl Chip8VM {
                 // TODO: Implement FontChar logic here
             }
             BinDecConv(vx) => {
-                let val = self.registers.get(vx);
+                let val = self.registers[vx];
                 let (v1, v2, v3) = ((val / 100), (val / 10 % 10), (val % 10));
                 let idx = self.index_register;
                 self.memory.write(idx, v1);
@@ -359,7 +355,7 @@ impl Chip8VM {
                 debug!("Storing registers 0 through {} into memory", vx);
                 let mut addr = self.index_register;
                 for vn in 0..=vx {
-                    self.memory.write(addr, self.registers.get(vn));
+                    self.memory.write(addr, self.registers[vn]);
                     addr += 1;
                 }
             }
@@ -368,7 +364,7 @@ impl Chip8VM {
                 let mut addr = self.index_register;
                 for vn in 0..=vx {
                     let val = self.memory.read(addr);
-                    self.registers.set(vn, val);
+                    self.registers[vn] = val;
                     addr += 1;
                 }
             }
@@ -388,6 +384,6 @@ mod tests {
         let mut vm = vm_result.unwrap();
         let result = vm.execute(Instruction::SetVal(1, 2));
         assert!(result.is_ok());
-        assert_eq!(vm.registers.get(1), 2);
+        assert_eq!(vm.registers[1], 2);
     }
 }
