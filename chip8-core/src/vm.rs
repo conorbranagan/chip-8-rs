@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::display::Display;
 use crate::instructions::Instruction;
-use crate::keypad::Keypad;
+use crate::keypad::{Key, KeyState, Keypad};
 use crate::memory::{Memory, Stack};
 
 const NUM_REGISTERS: usize = 16;
@@ -18,6 +18,9 @@ const LOG_FILE: &str = "chip8-debug.log";
 pub enum VMError {
     #[error("Unknown instruction: {0}")]
     UnknownInstruction(u16),
+
+    #[error("Unknown key: {0}")]
+    UnknownKey(u8),
 
     #[error("Rom load error: {0}")]
     RomLoadFailure(String),

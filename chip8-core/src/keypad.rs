@@ -1,4 +1,6 @@
-/// Individual key on the [`Keypad`]
+use crate::vm::VMError;
+use std::ops::{Index, IndexMut};
+
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Key {
@@ -36,14 +38,60 @@ pub enum Key {
     KeyF = 0xF,
 }
 
-pub(crate) struct Keypad {}
+impl TryFrom<u8> for Key {
+    type Error = VMError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        use Key::*;
+        match value {
+            0x0 => Ok(Key1),
+            0x1 => Ok(Key2),
+            0x2 => Ok(Key3),
+            0x4 => Ok(Key4),
+            0x5 => Ok(Key5),
+            0x6 => Ok(Key6),
+            0x7 => Ok(Key7),
+            0x8 => Ok(Key8),
+            0x9 => Ok(Key9),
+            0xA => Ok(KeyA),
+            0xB => Ok(KeyB),
+            0xC => Ok(KeyC),
+            0xD => Ok(KeyD),
+            0xE => Ok(KeyE),
+            0xF => Ok(KeyF),
+            _ => Err(VMError::UnknownKey(value)),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum KeyState {
+    NotPressed,
+    Pressed,
+}
+
+pub(crate) struct Keypad {
+    state: [KeyState; 16],
+}
 
 impl Keypad {
     pub(crate) fn new() -> Self {
-        Keypad {}
+        Keypad {
+            state: [KeyState::NotPressed; 16],
+        }
     }
+}
 
-    pub(crate) fn pressed(&mut self) -> Key {
-        Key::Key0
+impl Index<Key> for Keypad {
+    type Output = KeyState;
+
+    fn index(&self, index: Key) -> &Self::Output {
+        &self.state[index as usize]
+    }
+}
+
+impl IndexMut<Key> for Keypad {
+    fn index_mut(&mut self, index: Key) -> &mut Self::Output {
+        &mut self.state[index as usize]
     }
 }
