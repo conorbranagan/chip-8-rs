@@ -31,6 +31,12 @@ pub enum VMError {
 
     #[error("Failed to create log file: {0}")]
     FileCreationError(#[from] std::io::Error),
+
+    #[error("Stack underflow")]
+    StackUnderflow(),
+
+    #[error("Stack overflow")]
+    StackOverflow(),
 }
 
 struct Registers {
@@ -79,6 +85,7 @@ pub struct Chip8VM {
     stack: Stack,
     keypad: Keypad,
     index_register: usize,
+    key_wait: Option<RegNum>,
     delay_timer: u8,
     sound_timer: u8,
 }
@@ -100,6 +107,7 @@ impl Chip8VM {
             registers: Registers::new(),
             stack: Stack::default(),
             keypad: Keypad::new(),
+            key_wait: None,
             index_register: 0,
             delay_timer: 0,
             sound_timer: 0,
@@ -136,7 +144,27 @@ impl Chip8VM {
         self.display.get_framebuffer()
     }
 
+    pub fn handle_key(&mut self, key_code: u8, is_pressed: bool) {
+        if let Ok(key) = Key::try_from(key_code) {
+            self.keypad[key] = if is_pressed {
+                KeyState::Pressed
+            } else {
+                KeyState::NotPressed
+            };
+        }
+        if let Some(vx) = self.key_wait {
+            self.registers[vx] = key_code;
+            self.key_wait = None;
+        }
+    }
+
     fn execute(&mut self, instr: Instruction) -> Result<(), VMError> {
+        // When we're waiting on a key we won't execute any more instructions
+        // until handle_key is called and `key_wait` gets reset.
+        if self.key_wait.is_some() {
+            return Ok(());
+        }
+
         use Instruction::*;
         match instr {
             Unknown(code) => {
@@ -148,8 +176,10 @@ impl Chip8VM {
                 self.display.clear();
             }
             ExitSubroutine => {
-                debug!("Executing ExitSubroutine");
-                // TODO: Implement ExitSubroutine logic here
+                debug!("Exit subroutine");
+                if let Ok(addr) = self.stack.pop() {
+                    self.registers.pc = addr as usize;
+                }
             }
             Jump(addr) => {
                 debug!("Jumping to address {:#X}", addr);
@@ -157,7 +187,9 @@ impl Chip8VM {
             }
             CallSubroutine(addr) => {
                 debug!("Calling subroutine at address {:#X}", addr);
-                // TODO: Implement CallSubroutine logic here
+                if self.stack.push(addr).is_ok() {
+                    self.registers.pc = addr as usize;
+                }
             }
             SkipValEqual(vx, val) => {
                 debug!("Skipping if register {} equals value {:#X}", vx, val);
@@ -183,7 +215,7 @@ impl Chip8VM {
             }
             AddVal(vx, val) => {
                 debug!("Adding value {:#X} to register {}", val, vx);
-                self.registers[vx] += val;
+                self.registers.add(vx, val);
             }
             SetReg(vx, vy) => {
                 debug!("Setting register {} to the value of register {}", vx, vy);
@@ -333,7 +365,7 @@ impl Chip8VM {
             }
             GetKey(vx) => {
                 debug!("Waiting for key press to store in register {}", vx);
-                // TODO: Implement GetKey logic here
+                self.key_wait = Some(vx);
             }
             FontChar(vx) => {
                 debug!("Setting index to font character for register {}", vx);
@@ -385,5 +417,59 @@ mod tests {
         let result = vm.execute(Instruction::SetVal(1, 2));
         assert!(result.is_ok());
         assert_eq!(vm.registers[1], 2);
+    }
+
+    #[test]
+    fn execute_registers_8bits() {
+        let vm_result = Chip8VM::new();
+        assert!(vm_result.is_ok());
+        let mut vm = vm_result.unwrap();
+
+        // https://github.com/Timendus/chip8-test-suite/blob/main/src/tests/3-corax+.8o#L351
+        // no overflow
+        assert!(vm.execute(Instruction::SetVal(6, 255)).is_ok());
+        assert_eq!(vm.registers[6], 255);
+        assert!(vm.execute(Instruction::AddVal(6, 10)).is_ok());
+        assert_eq!(vm.registers[6], 9);
+        assert!(vm.execute(Instruction::ShiftRight(6, 6)).is_ok());
+        assert_eq!(vm.registers[6], 4);
+        assert!(vm.execute(Instruction::SetVal(6, 255)).is_ok());
+        assert_eq!(vm.registers[6], 255);
+        assert!(vm.execute(Instruction::SetVal(0, 10)).is_ok());
+        assert_eq!(vm.registers[0], 10);
+        assert!(vm.execute(Instruction::Add(6, 0)).is_ok());
+        assert_eq!(vm.registers[6], 9);
+        assert!(vm.execute(Instruction::ShiftRight(6, 6)).is_ok());
+        assert_eq!(vm.registers[6], 4);
+
+        // do not retain bits
+        assert!(vm.execute(Instruction::SetVal(6, 255)).is_ok());
+        assert_eq!(vm.registers[6], 255);
+        assert!(vm.execute(Instruction::ShiftLeft(6, 6)).is_ok());
+        assert!(vm.execute(Instruction::ShiftRight(6, 6)).is_ok());
+        assert_eq!(vm.registers[6], 127);
+        assert!(vm.execute(Instruction::ShiftRight(6, 6)).is_ok());
+        assert!(vm.execute(Instruction::ShiftLeft(6, 6)).is_ok());
+        assert_eq!(vm.registers[6], 126);
+
+        assert!(vm.execute(Instruction::SetVal(6, 5)).is_ok());
+        assert_eq!(vm.registers[6], 5);
+        assert!(vm.execute(Instruction::SetVal(0, 10)).is_ok());
+        assert_eq!(vm.registers[0], 10);
+        assert!(vm.execute(Instruction::Sub(6, 0)).is_ok());
+        assert_eq!(vm.registers[6], 251);
+
+        assert!(vm.execute(Instruction::SetVal(6, 5)).is_ok());
+        assert_eq!(vm.registers[6], 5);
+        assert!(vm.execute(Instruction::Sub(6, 0)).is_ok());
+        assert_eq!(vm.registers[6], 251);
+        assert!(vm.execute(Instruction::SetVal(6, 5)).is_ok());
+        assert_eq!(vm.registers[6], 5);
+
+        // v0 =- v6
+        assert!(vm
+            .execute(Instruction::SetVal(0, vm.registers[6].wrapping_neg()))
+            .is_ok());
+        assert_eq!(vm.registers[0], 251);
     }
 }

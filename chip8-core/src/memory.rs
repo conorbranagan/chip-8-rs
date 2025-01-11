@@ -1,3 +1,5 @@
+use crate::vm::VMError;
+
 const FONT: [[u8; 5]; 16] = [
     [0xF0, 0x90, 0x90, 0x90, 0xF0], // 0
     [0x20, 0x60, 0x20, 0x20, 0x70], // 1
@@ -66,10 +68,9 @@ impl Stack {
         }
     }
 
-    pub(crate) fn push(&mut self, value: u16) {
+    pub(crate) fn push(&mut self, value: u16) -> Result<(), VMError> {
         if self.sp >= self.max_size {
-            // stack overflow!
-            panic!("stack overflow")
+            return Err(VMError::StackOverflow());
         }
         if self.sp == self.data.len() {
             self.data.push(value);
@@ -77,15 +78,15 @@ impl Stack {
             self.data[self.sp] = value;
         }
         self.sp += 1;
+        Ok(())
     }
 
-    pub(crate) fn pop(&mut self) -> u16 {
+    pub(crate) fn pop(&mut self) -> Result<u16, VMError> {
         if self.sp == 0 {
-            // stack underflow!
-            panic!("stack underflow")
+            return Err(VMError::StackUnderflow());
         }
         self.sp -= 1;
-        self.data[self.sp]
+        Ok(self.data[self.sp])
     }
 }
 
@@ -104,7 +105,9 @@ mod tests {
     #[test]
     fn test_stack() {
         let mut stack = Stack::new(MAX_STACK_SIZE);
-        stack.push(1);
-        assert_eq!(stack.pop(), 1);
+        assert!(stack.push(1).is_ok());
+        let result = stack.pop();
+        assert!(result.is_ok());
+        assert_eq!(stack.pop().unwrap(), 1);
     }
 }

@@ -5,8 +5,9 @@ use chip8_core::vm::{Chip8VM, VMError};
 use pixels::{Pixels, SurfaceTexture};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::{KeyEvent, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::{ControlFlow, EventLoop};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
 
 const HZ: u64 = 60;
@@ -80,6 +81,32 @@ impl Emulator {
             pixels.render().unwrap();
         }
     }
+
+    fn handle_key(&mut self, code: KeyCode, is_pressed: bool) {
+        // Map key codes to computer-keyboard-friendly codes.
+        let key_code: u8 = {
+            match code {
+                KeyCode::Numpad1 => 0x0,
+                KeyCode::Numpad2 => 0x1,
+                KeyCode::Numpad3 => 0x2,
+                KeyCode::Numpad4 => 0x3,
+                KeyCode::KeyQ => 0x4,
+                KeyCode::KeyW => 0x5,
+                KeyCode::KeyE => 0x6,
+                KeyCode::KeyR => 0x7,
+                KeyCode::KeyA => 0x8,
+                KeyCode::KeyS => 0x9,
+                KeyCode::KeyD => 0xA,
+                KeyCode::KeyF => 0xB,
+                KeyCode::KeyZ => 0xC,
+                KeyCode::KeyX => 0xD,
+                KeyCode::KeyC => 0xE,
+                KeyCode::KeyV => 0xF,
+                _ => 0x10,
+            }
+        };
+        self.vm.handle_key(key_code, is_pressed);
+    }
 }
 
 impl ApplicationHandler for Emulator {
@@ -127,22 +154,16 @@ impl ApplicationHandler for Emulator {
             }
             WindowEvent::RedrawRequested => {
                 self.draw_frame();
-
-                // You only need to call this if you've determined that you need to redraw in
-                // applications which do not always need to. Applications that redraw continuously
-                // can render here instead.
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
             }
-            WindowEvent::KeyboardInput {
-                device_id: _device_id,
-                event: _event,
-                is_synthetic: _is_synthetic,
-            } => {
-                // TODO
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let PhysicalKey::Code(code) = event.physical_key {
+                    self.handle_key(code, event.state.is_pressed());
+                }
             }
-            _ => (),
+            _ => {}
         }
     }
 
