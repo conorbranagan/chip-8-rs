@@ -3,6 +3,7 @@ use rand::Rng;
 use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
 use std::fs::{self, File};
 use std::num::Wrapping;
+use thiserror::Error;
 
 use crate::display::Display;
 use crate::instructions::Instruction;
@@ -11,6 +12,21 @@ use crate::memory::{Memory, Stack};
 const NUM_REGISTERS: usize = 16;
 const ROM_START: usize = 0x200;
 const LOG_FILE: &str = "chip8-debug.log";
+
+#[derive(Error, Debug)]
+pub enum VMError {
+    #[error("Unknown instruction: {0}")]
+    UnknownInstruction(u16),
+
+    #[error("Rom load error: {0}")]
+    RomLoadFailure(String),
+
+    #[error("Failed to initialize logging: {0}")]
+    LogInitError(#[from] log::SetLoggerError),
+
+    #[error("Failed to create log file: {0}")]
+    FileCreationError(#[from] std::io::Error),
+}
 
 struct Registers {
     data: [u8; NUM_REGISTERS],
@@ -52,19 +68,21 @@ pub struct Chip8VM {
     index_register: usize,
     delay_timer: u8,
     sound_timer: u8,
+    key_pressed: u8,
 }
 
 impl Chip8VM {
-    pub fn new() -> Chip8VM {
+    pub fn new() -> Result<Chip8VM, VMError> {
+        let log_file = File::create(LOG_FILE)?;
+
         CombinedLogger::init(vec![WriteLogger::new(
             LevelFilter::Debug,
             Config::default(),
-            File::create(LOG_FILE).unwrap(),
-        )])
-        .expect("failed to create debug log file");
-        println!("Writing to log file: {}", LOG_FILE);
+            log_file,
+        )])?;
+        debug!("Initializing Chip8VM with log file: {}", LOG_FILE);
 
-        Chip8VM {
+        Ok(Chip8VM {
             memory: Memory::new(),
             display: Display::new(),
             registers: Registers::new(),
@@ -72,17 +90,24 @@ impl Chip8VM {
             index_register: 0,
             delay_timer: 0,
             sound_timer: 0,
+            key_pressed: 0x0,
+        })
+    }
+
+    pub fn load_rom(&mut self, rom_path: &String) -> Result<(), VMError> {
+        match fs::read(rom_path) {
+            Ok(rom_bytes) => {
+                for (i, b) in rom_bytes.iter().enumerate() {
+                    self.memory.write(ROM_START + i, *b);
+                }
+                debug!("loaded {} into vm memory", rom_path);
+                Ok(())
+            }
+            Err(e) => Err(VMError::RomLoadFailure(e.to_string())),
         }
     }
 
-    pub fn load_rom(&mut self, rom_path: &String) {
-        let rom_bytes = fs::read(rom_path).expect("unable to read rom file");
-        for (i, b) in rom_bytes.iter().enumerate() {
-            self.memory.write(ROM_START + i, *b);
-        }
-    }
-
-    pub fn execute_next(&mut self) -> Result<u16, &str> {
+    pub fn run_cycle(&mut self) -> Result<(), VMError> {
         // need to read 2 bytes for the full instruction.
         let op1 = self.memory.read(self.registers.pc);
         let op2 = self.memory.read(self.registers.pc + 1);
@@ -92,19 +117,18 @@ impl Chip8VM {
         self.registers.pc += 2;
 
         let instr = Instruction::decode(op);
-        self.execute(instr);
-
-        Ok(op)
+        self.execute(instr)
     }
 
     pub fn get_framebuffer(&mut self) -> &[bool] {
         self.display.get_framebuffer()
     }
 
-    fn execute(&mut self, instr: Instruction) {
+    fn execute(&mut self, instr: Instruction) -> Result<(), VMError> {
         match instr {
             Instruction::Unknown(code) => {
                 debug!("Unknown instruction: {:#X}", code);
+                return Err(VMError::UnknownInstruction(code));
             }
             Instruction::ClearScreen => {
                 debug!("Executing ClearScreen");
@@ -336,6 +360,7 @@ impl Chip8VM {
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -345,8 +370,11 @@ mod tests {
 
     #[test]
     fn execute_set_val() {
-        let mut vm: Chip8VM = Chip8VM::new();
-        vm.execute(Instruction::SetVal(1, 2));
+        let vm_result = Chip8VM::new();
+        assert!(vm_result.is_ok());
+        let mut vm = vm_result.unwrap();
+        let result = vm.execute(Instruction::SetVal(1, 2));
+        assert!(result.is_ok());
         assert_eq!(vm.registers.get(1), 2);
     }
 }

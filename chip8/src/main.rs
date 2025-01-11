@@ -1,7 +1,7 @@
 use std::{env, sync::Arc};
 
 use chip8_core::display::Display;
-use chip8_core::vm::Chip8VM;
+use chip8_core::vm::{Chip8VM, VMError};
 use pixels::{Pixels, SurfaceTexture};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
@@ -21,11 +21,16 @@ fn main() {
     }
 
     let rom_path = args.get(1).unwrap();
-    let mut emu = Emulator::new(rom_path.to_string());
-
-    let event_loop: EventLoop<()> = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
-    let _ = event_loop.run_app(&mut emu);
+    match Emulator::new(rom_path.to_string()) {
+        Ok(mut emu) => {
+            let event_loop: EventLoop<()> = EventLoop::new().unwrap();
+            event_loop.set_control_flow(ControlFlow::Poll);
+            let _ = event_loop.run_app(&mut emu);
+        }
+        Err(e) => {
+            println!("Failed to start emulator: {}", e)
+        }
+    }
 }
 
 struct Emulator {
@@ -36,27 +41,26 @@ struct Emulator {
 }
 
 impl Emulator {
-    fn new(rom_path: String) -> Self {
-        let mut vm = Chip8VM::new();
-        vm.load_rom(&rom_path);
-        println!("Loaded {} into memory", rom_path);
-
-        Self {
+    fn new(rom_path: String) -> Result<Self, VMError> {
+        let mut vm = Chip8VM::new()?;
+        vm.load_rom(&rom_path)?;
+        Ok(Self {
             pixels: None,
             vm: vm,
             cycles: 0,
             window: None,
-        }
+        })
     }
 
-    fn run_cycle(&mut self) {
-        self.vm.execute_next().unwrap();
+    fn run_cycle(&mut self) -> Result<(), VMError> {
+        self.vm.run_cycle()?;
         self.cycles += 1;
         if self.cycles % HZ == 0 {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
         }
+        Ok(())
     }
 
     fn draw_frame(&mut self) {
@@ -142,7 +146,10 @@ impl ApplicationHandler for Emulator {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
-        self.run_cycle();
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if let Err(err) = self.run_cycle() {
+            println!("failed to run cycle: {}", err);
+            event_loop.exit();
+        }
     }
 }
