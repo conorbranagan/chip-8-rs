@@ -1,6 +1,7 @@
-#![allow(dead_code)]
+use log::debug;
 use rand::Rng;
-use std::fs;
+use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
+use std::fs::{self, File};
 use std::num::Wrapping;
 
 use crate::display::Display;
@@ -9,6 +10,7 @@ use crate::memory::{Memory, Stack};
 
 const NUM_REGISTERS: usize = 16;
 const ROM_START: usize = 0x200;
+const LOG_FILE: &str = "chip8-debug.log";
 
 struct Registers {
     data: [u8; NUM_REGISTERS],
@@ -54,6 +56,14 @@ pub struct Chip8VM {
 
 impl Chip8VM {
     pub fn new() -> Chip8VM {
+        CombinedLogger::init(vec![WriteLogger::new(
+            LevelFilter::Debug,
+            Config::default(),
+            File::create(LOG_FILE).unwrap(),
+        )])
+        .expect("failed to create debug log file");
+        println!("Writing to log file: {}", LOG_FILE);
+
         Chip8VM {
             memory: Memory::new(),
             display: Display::new(),
@@ -94,33 +104,33 @@ impl Chip8VM {
     fn execute(&mut self, instr: Instruction) {
         match instr {
             Instruction::Unknown(code) => {
-                println!("Unknown instruction: {:#X}", code);
+                debug!("Unknown instruction: {:#X}", code);
             }
             Instruction::ClearScreen => {
-                println!("Executing ClearScreen");
+                debug!("Executing ClearScreen");
                 self.display.clear();
             }
             Instruction::ExitSubroutine => {
-                println!("Executing ExitSubroutine");
+                debug!("Executing ExitSubroutine");
                 // Implement ExitSubroutine logic here
             }
             Instruction::Jump(addr) => {
-                println!("Jumping to address {:#X}", addr);
+                debug!("Jumping to address {:#X}", addr);
                 self.registers.pc = addr as usize;
             }
             Instruction::CallSubroutine(addr) => {
-                println!("Calling subroutine at address {:#X}", addr);
+                debug!("Calling subroutine at address {:#X}", addr);
                 // Implement CallSubroutine logic here
             }
             Instruction::SkipValEqual(vx, val) => {
-                println!("Skipping if register {} equals value {:#X}", vx, val);
+                debug!("Skipping if register {} equals value {:#X}", vx, val);
                 let vx_val = self.registers.get(vx);
                 if val == vx_val {
                     self.registers.pc += 2;
                 }
             }
             Instruction::SkipValNotEqual(vx, val) => {
-                println!(
+                debug!(
                     "Skipping if register {} does not equal value {:#X}",
                     vx, val
                 );
@@ -130,7 +140,7 @@ impl Chip8VM {
                 }
             }
             Instruction::SkipRegEqual(vx, vy) => {
-                println!("Skipping if register {} equals register {}", vx, vy);
+                debug!("Skipping if register {} equals register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 if vx_val == vy_val {
@@ -138,38 +148,38 @@ impl Chip8VM {
                 }
             }
             Instruction::SetVal(vx, val) => {
-                println!("Setting register {0} to value {1:} ({1:#X})", vx, val);
+                debug!("Setting register {0} to value {1:} ({1:#X})", vx, val);
                 self.registers.set(vx, val);
             }
             Instruction::AddVal(vx, val) => {
-                println!("Adding value {:#X} to register {}", val, vx);
+                debug!("Adding value {:#X} to register {}", val, vx);
                 self.registers.add(vx, val);
             }
             Instruction::SetReg(vx, vy) => {
-                println!("Setting register {} to the value of register {}", vx, vy);
+                debug!("Setting register {} to the value of register {}", vx, vy);
                 let reg_val = self.registers.get(vy);
                 self.registers.set(vx, reg_val);
             }
             Instruction::OR(vx, vy) => {
-                println!("ORing register {} with register {}", vx, vy);
+                debug!("ORing register {} with register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.set(vx, vx_val | vy_val);
             }
             Instruction::AND(vx, vy) => {
-                println!("ANDing register {} with register {}", vx, vy);
+                debug!("ANDing register {} with register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.set(vx, vx_val & vy_val);
             }
             Instruction::XOR(vx, vy) => {
-                println!("XORing register {} with register {}", vx, vy);
+                debug!("XORing register {} with register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.set(vx, vx_val ^ vy_val);
             }
             Instruction::Add(vx, vy) => {
-                println!("Adding register {} to register {}", vy, vx);
+                debug!("Adding register {} to register {}", vy, vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.add(vx, vy_val);
 
@@ -182,7 +192,7 @@ impl Chip8VM {
                 }
             }
             Instruction::Sub(vx, vy) => {
-                println!("Subtracting register {} from register {}", vy, vx);
+                debug!("Subtracting register {} from register {}", vy, vx);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 self.registers.sub(vx, vy_val);
@@ -195,19 +205,19 @@ impl Chip8VM {
                 }
             }
             Instruction::ShiftRight(vx, _) => {
-                println!("Shifting register {} right", vx);
+                debug!("Shifting register {} right", vx);
                 let reg_val = self.registers.get(vx);
                 self.registers.set(vx, reg_val >> 1);
                 self.registers.set(0xF, reg_val & 1);
             }
             Instruction::ShiftLeft(vx, _) => {
-                println!("Shifting register {} left", vx);
+                debug!("Shifting register {} left", vx);
                 let reg_val = self.registers.get(vx);
                 self.registers.set(vx, reg_val << 1);
                 self.registers.set(0xF, (reg_val >> 7) & 1);
             }
             Instruction::SkipRegNotEqual(vx, vy) => {
-                println!("Skipping if register {} does not equal register {}", vx, vy);
+                debug!("Skipping if register {} does not equal register {}", vx, vy);
                 let vx_val = self.registers.get(vx);
                 let vy_val = self.registers.get(vy);
                 if vx_val != vy_val {
@@ -215,15 +225,15 @@ impl Chip8VM {
                 }
             }
             Instruction::SetIndex(val) => {
-                println!("Setting index register to {:#X}", val);
+                debug!("Setting index register to {:#X}", val);
                 self.index_register = val as usize;
             }
             Instruction::JumpOffset(val) => {
-                println!("Jumping to address with offset {:#X}", val);
+                debug!("Jumping to address with offset {:#X}", val);
                 self.registers.pc = (self.registers.get(0) as usize + val as usize) & 0xFFF;
             }
             Instruction::Random(vx, val) => {
-                println!(
+                debug!(
                     "Generating random number for register {} with mask {:#X}",
                     vx, val
                 );
@@ -234,7 +244,7 @@ impl Chip8VM {
                 // Wrap coordinates around display.
                 let x_coord = self.registers.get(vx);
                 let y_coord = self.registers.get(vy);
-                println!(
+                debug!(
                     "Displaying sprite at ({}, {}) with height {}",
                     x_coord, y_coord, height
                 );
@@ -265,35 +275,35 @@ impl Chip8VM {
                 self.registers.set(0xF, vf);
             }
             Instruction::SkipIfPressed(vx) => {
-                println!("Skipping if key in register {} is pressed", vx);
+                debug!("Skipping if key in register {} is pressed", vx);
                 // Implement SkipIfPressed logic here
             }
             Instruction::SkipNotPressed(vx) => {
-                println!("Skipping if key in register {} is not pressed", vx);
+                debug!("Skipping if key in register {} is not pressed", vx);
                 // Implement SkipNotPressed logic here
             }
             Instruction::GetDelayTimer(vx) => {
-                println!("Getting delay timer value into register {}", vx);
+                debug!("Getting delay timer value into register {}", vx);
                 self.registers.set(vx, self.delay_timer);
             }
             Instruction::SetDelayTimer(vx) => {
-                println!("Setting delay timer to value in register {}", vx);
+                debug!("Setting delay timer to value in register {}", vx);
                 self.delay_timer = self.registers.get(vx)
             }
             Instruction::SetSoundTimer(vx) => {
-                println!("Setting sound timer to value in register {}", vx);
+                debug!("Setting sound timer to value in register {}", vx);
                 self.sound_timer = self.registers.get(vx);
             }
             Instruction::AddToIndex(vx) => {
-                println!("Adding register {} to index register", vx);
+                debug!("Adding register {} to index register", vx);
                 self.index_register += self.registers.get(vx) as usize;
             }
             Instruction::GetKey(vx) => {
-                println!("Waiting for key press to store in register {}", vx);
+                debug!("Waiting for key press to store in register {}", vx);
                 // Implement GetKey logic here
             }
             Instruction::FontChar(vx) => {
-                println!("Setting index to font character for register {}", vx);
+                debug!("Setting index to font character for register {}", vx);
                 // Implement FontChar logic here
             }
             Instruction::BinDecConv(vx) => {
@@ -303,13 +313,13 @@ impl Chip8VM {
                 self.memory.write(idx, v1);
                 self.memory.write(idx + 1, v2);
                 self.memory.write(idx + 2, v3);
-                println!(
+                debug!(
                     "Converting register {} to binary-coded decimal {} => ({}, {}, {})",
                     vx, val, v1, v2, v3
                 );
             }
             Instruction::StoreMem(vx) => {
-                println!("Storing registers 0 through {} into memory", vx);
+                debug!("Storing registers 0 through {} into memory", vx);
                 let mut addr = self.index_register;
                 for vn in 0..=vx {
                     self.memory.write(addr, self.registers.get(vn));
@@ -317,7 +327,7 @@ impl Chip8VM {
                 }
             }
             Instruction::LoadMem(vx) => {
-                println!("Loading memory into registers 0 through {}", vx);
+                debug!("Loading memory into registers 0 through {}", vx);
                 let mut addr = self.index_register;
                 for vn in 0..=vx {
                     let val = self.memory.read(addr);

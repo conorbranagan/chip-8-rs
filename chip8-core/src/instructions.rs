@@ -102,10 +102,6 @@ fn d_val(instr: u16) -> u8 {
     (instr & 0x00FF) as u8
 }
 
-fn d_val16(instr: u16) -> u16 {
-    instr & 0x0FFF
-}
-
 fn d_reg1(instr: u16) -> u8 {
     ((instr & 0x0F00) >> 8) as u8
 }

@@ -28,7 +28,6 @@ fn main() {
     let _ = event_loop.run_app(&mut emu);
 }
 
-
 struct Emulator {
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
@@ -82,15 +81,20 @@ impl Emulator {
 impl ApplicationHandler for Emulator {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let window_attributes = Window::default_attributes()
-                .with_title("Chip-8 Emulator")
-                .with_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT))
-                .with_min_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
+            .with_title("Chip-8 Emulator")
+            .with_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT))
+            .with_min_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         let pixels = {
             let window_size = window.inner_size();
             let surface_texture =
                 SurfaceTexture::new(window_size.width, window_size.height, window.clone());
-            Pixels::new(Display::WIDTH as u32, Display::HEIGHT as u32, surface_texture).unwrap()
+            Pixels::new(
+                Display::WIDTH as u32,
+                Display::HEIGHT as u32,
+                surface_texture,
+            )
+            .unwrap()
         };
 
         self.window = Some(window.clone());
@@ -98,40 +102,44 @@ impl ApplicationHandler for Emulator {
     }
 
     fn window_event(
-            &mut self,
-            event_loop: &winit::event_loop::ActiveEventLoop,
-            _window_id: winit::window::WindowId,
-            event: winit::event::WindowEvent,
-        ) {
-            match event {
-                WindowEvent::CloseRequested => {
-                    println!("The close button was pressed; stopping");
-                    event_loop.exit();
-                },
-                WindowEvent::Resized(size) => {
-                    if let Some(pixels) = &mut self.pixels {
-                        if let Err(err) = pixels.resize_surface(size.width, size.height) {
-                            println!("pixels.resize_surface: {:?}", err);
-                            event_loop.exit();
-                            return;        
-                        }
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        match event {
+            WindowEvent::CloseRequested => {
+                println!("The close button was pressed; stopping");
+                event_loop.exit();
+            }
+            WindowEvent::Resized(size) => {
+                if let Some(pixels) = &mut self.pixels {
+                    if let Err(err) = pixels.resize_surface(size.width, size.height) {
+                        println!("pixels.resize_surface: {:?}", err);
+                        event_loop.exit();
+                        return;
                     }
                 }
-                WindowEvent::RedrawRequested => {   
-                    self.draw_frame();
-    
-                    // You only need to call this if you've determined that you need to redraw in
-                    // applications which do not always need to. Applications that redraw continuously
-                    // can render here instead.
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }        
-                },
-                WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {
-                    // TODO
-                },
-                _ => (),
             }
+            WindowEvent::RedrawRequested => {
+                self.draw_frame();
+
+                // You only need to call this if you've determined that you need to redraw in
+                // applications which do not always need to. Applications that redraw continuously
+                // can render here instead.
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            WindowEvent::KeyboardInput {
+                device_id: _device_id,
+                event: _event,
+                is_synthetic: _is_synthetic,
+            } => {
+                // TODO
+            }
+            _ => (),
+        }
     }
 
     fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {

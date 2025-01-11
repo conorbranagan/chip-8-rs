@@ -87,8 +87,6 @@ impl Stack {
         self.sp -= 1;
         self.data[self.sp]
     }
-
-    // TODO: push, pop, peek, clear?
 }
 
 #[cfg(test)]

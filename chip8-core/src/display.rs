@@ -34,19 +34,6 @@ impl Display {
     pub(crate) fn get_framebuffer(&mut self) -> &[bool] {
         self.pixels.as_flattened()
     }
-
-    pub(crate) fn render(&mut self) {
-        for row in self.pixels.iter_mut() {
-            for v in row.iter() {
-                if *v {
-                    print!("█")
-                } else {
-                    print!(" ")
-                }
-            }
-            print!("\n");
-        }
-    }
 }
 
 #[cfg(test)]
