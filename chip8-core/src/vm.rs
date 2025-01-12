@@ -52,11 +52,6 @@ impl Registers {
             pc: ROM_START,
         };
     }
-
-    pub fn add(&mut self, reg: u8, val: u8) {
-        let reg_val = self.data[reg as usize];
-        self.data[reg as usize] = reg_val.wrapping_add(val);
-    }
 }
 
 impl Index<RegNum> for Registers {
