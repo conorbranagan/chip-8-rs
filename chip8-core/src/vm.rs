@@ -84,7 +84,7 @@ impl Chip8VM {
         let log_file = File::create(LOG_FILE)?;
 
         CombinedLogger::init(vec![WriteLogger::new(
-            LevelFilter::Debug,
+            LevelFilter::Info,
             Config::default(),
             log_file,
         )])?;
@@ -117,6 +117,12 @@ impl Chip8VM {
     }
 
     pub fn run_cycle(&mut self) -> Result<(), VMError> {
+        // When we're waiting on a key we won't execute any more instructions
+        // until handle_key is called and `key_wait` gets reset.
+        if self.key_wait.is_some() {
+            return Ok(());
+        }
+
         // need to read 2 bytes for the full instruction.
         let op1 = self.memory.read(self.registers.pc);
         let op2 = self.memory.read(self.registers.pc + 1);
@@ -141,7 +147,6 @@ impl Chip8VM {
             } else {
                 KeyState::NotPressed
             };
-            println!("setting key {} to {:?}", key_code, self.keypad[key]);
         }
         if let Some(vx) = self.key_wait {
             self.registers[vx] = key_code;
@@ -150,12 +155,6 @@ impl Chip8VM {
     }
 
     fn execute(&mut self, instr: Instruction) -> Result<(), VMError> {
-        // When we're waiting on a key we won't execute any more instructions
-        // until handle_key is called and `key_wait` gets reset.
-        if self.key_wait.is_some() {
-            return Ok(());
-        }
-
         use Instruction::*;
         match instr {
             Unknown(code) => {
@@ -358,7 +357,7 @@ impl Chip8VM {
                 self.index_register += self.registers[vx] as usize;
             }
             GetKey(vx) => {
-                println!("Waiting for key press to store in register {}", vx);
+                debug!("Waiting for key press to store in register {}", vx);
                 self.registers.pc -= 2;
                 self.key_wait = Some(vx);
             }

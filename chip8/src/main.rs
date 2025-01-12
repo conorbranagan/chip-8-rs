@@ -154,9 +154,6 @@ impl ApplicationHandler for Emulator {
             }
             WindowEvent::RedrawRequested => {
                 self.draw_frame();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(code) = event.physical_key {
