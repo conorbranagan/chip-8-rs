@@ -44,9 +44,10 @@ impl TryFrom<u8> for Key {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         use Key::*;
         match value {
-            0x0 => Ok(Key1),
-            0x1 => Ok(Key2),
-            0x2 => Ok(Key3),
+            0x0 => Ok(Key0),
+            0x1 => Ok(Key1),
+            0x2 => Ok(Key2),
+            0x3 => Ok(Key3),
             0x4 => Ok(Key4),
             0x5 => Ok(Key5),
             0x6 => Ok(Key6),
@@ -64,7 +65,7 @@ impl TryFrom<u8> for Key {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyState {
     NotPressed,
     Pressed,

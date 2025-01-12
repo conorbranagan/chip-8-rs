@@ -141,6 +141,7 @@ impl Chip8VM {
             } else {
                 KeyState::NotPressed
             };
+            println!("setting key {} to {:?}", key_code, self.keypad[key]);
         }
         if let Some(vx) = self.key_wait {
             self.registers[vx] = key_code;
