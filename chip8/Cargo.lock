@@ -300,6 +300,7 @@ dependencies = [
  "chip8_core",
  "log",
  "pixels",
+ "simplelog",
  "winit 0.30.8",
  "winit_input_helper",
 ]
@@ -310,7 +311,6 @@ version = "0.1.0"
 dependencies = [
  "log",
  "rand",
- "simplelog",
  "thiserror 2.0.11",
 ]
 

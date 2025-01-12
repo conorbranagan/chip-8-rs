@@ -5,8 +5,9 @@ edition = "2021"
 
 
 [dependencies]
-winit = "0.30.8"
-winit_input_helper = "0.15"
+chip8_core = { path = "../chip8-core" }
 pixels = "0.15.0"
 log = "0.4"
-chip8_core = { path = "../chip8-core" }
+simplelog = "0.12"
+winit = "0.30.8"
+winit_input_helper = "0.15"

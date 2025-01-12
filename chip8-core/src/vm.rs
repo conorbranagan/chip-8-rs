@@ -1,7 +1,6 @@
 use log::debug;
 use rand::Rng;
-use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
-use std::fs::{self, File};
+use std::fs;
 use std::ops::{Index, IndexMut};
 use thiserror::Error;
 
@@ -12,7 +11,6 @@ use crate::memory::{Memory, Stack};
 
 const NUM_REGISTERS: usize = 16;
 const ROM_START: usize = 0x200;
-const LOG_FILE: &str = "chip8-debug.log";
 
 #[derive(Error, Debug)]
 pub enum VMError {
@@ -24,9 +22,6 @@ pub enum VMError {
 
     #[error("Rom load error: {0}")]
     RomLoadFailure(String),
-
-    #[error("Failed to initialize logging: {0}")]
-    LogInitError(#[from] log::SetLoggerError),
 
     #[error("Failed to create log file: {0}")]
     FileCreationError(#[from] std::io::Error),
@@ -79,17 +74,8 @@ pub struct Chip8VM {
 }
 
 impl Chip8VM {
-    pub fn new() -> Result<Chip8VM, VMError> {
-        let log_file = File::create(LOG_FILE)?;
-
-        CombinedLogger::init(vec![WriteLogger::new(
-            LevelFilter::Info,
-            Config::default(),
-            log_file,
-        )])?;
-        debug!("Initializing Chip8VM with log file: {}", LOG_FILE);
-
-        Ok(Chip8VM {
+    pub fn new() -> Chip8VM {
+        Chip8VM {
             memory: Memory::new(),
             display: Display::new(),
             registers: Registers::new(),
@@ -104,7 +90,7 @@ impl Chip8VM {
             // clients should call tick_timers for this decrement at 60hz
             delay_timer: 0,
             sound_timer: 0,
-        })
+        }
     }
 
     pub fn load_rom(&mut self, rom_path: &String) -> Result<(), VMError> {
@@ -431,9 +417,7 @@ mod tests {
 
     #[test]
     fn test_registers_8bits() {
-        let vm_result = Chip8VM::new();
-        assert!(vm_result.is_ok());
-        let mut vm = vm_result.unwrap();
+        let mut vm = Chip8VM::new();
 
         // https://github.com/Timendus/chip8-test-suite/blob/main/src/tests/3-corax+.8o#L351
         // no overflow

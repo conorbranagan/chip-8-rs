@@ -1,8 +1,9 @@
-use std::{env, sync::Arc};
-
 use chip8_core::display::Display;
 use chip8_core::vm::{Chip8VM, VMError};
 use pixels::{Pixels, SurfaceTexture};
+use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
+use std::fs::File;
+use std::{env, sync::Arc};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::WindowEvent;
@@ -13,6 +14,7 @@ use winit::window::Window;
 const HZ: u64 = 60;
 const WINDOW_WIDTH: u32 = 512;
 const WINDOW_HEIGHT: u32 = 256;
+const LOG_FILE: &str = "chip8-debug.log";
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -22,6 +24,15 @@ fn main() {
     }
 
     let rom_path = args.get(1).unwrap();
+
+    let log_file = File::create(LOG_FILE).unwrap();
+    CombinedLogger::init(vec![WriteLogger::new(
+        LevelFilter::Info,
+        Config::default(),
+        log_file,
+    )])
+    .unwrap();
+
     match Emulator::new(rom_path.to_string()) {
         Ok(mut emu) => {
             let event_loop: EventLoop<()> = EventLoop::new().unwrap();
@@ -43,7 +54,7 @@ struct Emulator {
 
 impl Emulator {
     fn new(rom_path: String) -> Result<Self, VMError> {
-        let mut vm = Chip8VM::new()?;
+        let mut vm = Chip8VM::new();
         vm.load_rom(&rom_path)?;
         Ok(Self {
             pixels: None,
