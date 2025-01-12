@@ -2,7 +2,6 @@ use log::debug;
 use rand::Rng;
 use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
 use std::fs::{self, File};
-use std::num::Wrapping;
 use std::ops::{Index, IndexMut};
 use thiserror::Error;
 
@@ -56,12 +55,7 @@ impl Registers {
 
     pub fn add(&mut self, reg: u8, val: u8) {
         let reg_val = self.data[reg as usize];
-        self.data[reg as usize] = (Wrapping(reg_val) + Wrapping(val)).0;
-    }
-
-    pub fn sub(&mut self, reg: u8, val: u8) {
-        let reg_val = self.data[reg as usize];
-        self.data[reg as usize] = (Wrapping(reg_val) - Wrapping(val)).0;
+        self.data[reg as usize] = reg_val.wrapping_add(val);
     }
 }
 
@@ -131,6 +125,7 @@ impl Chip8VM {
         // need to read 2 bytes for the full instruction.
         let op1 = self.memory.read(self.registers.pc);
         let op2 = self.memory.read(self.registers.pc + 1);
+        debug!("execute instruction @ {:#X}", self.registers.pc);
 
         // combine to hex operation
         let op = ((op1 as u16) << 8) | op2 as u16;
@@ -187,8 +182,10 @@ impl Chip8VM {
             }
             CallSubroutine(addr) => {
                 debug!("Calling subroutine at address {:#X}", addr);
-                if self.stack.push(addr).is_ok() {
+                if self.stack.push(self.registers.pc as u16).is_ok() {
                     self.registers.pc = addr as usize;
+                } else {
+                    panic!("alksfjalksjfalksjf");
                 }
             }
             SkipValEqual(vx, val) => {
@@ -215,7 +212,7 @@ impl Chip8VM {
             }
             AddVal(vx, val) => {
                 debug!("Adding value {:#X} to register {}", val, vx);
-                self.registers.add(vx, val);
+                self.registers[vx] = self.registers[vx].wrapping_add(val);
             }
             SetReg(vx, vy) => {
                 debug!("Setting register {} to the value of register {}", vx, vy);
@@ -238,7 +235,7 @@ impl Chip8VM {
             Add(vx, vy) => {
                 debug!("Adding register {} to register {}", vy, vx);
                 let vy_val = self.registers[vy];
-                self.registers.add(vx, vy_val);
+                self.registers[vx] = self.registers[vx].wrapping_add(vy_val);
 
                 // Set carry flag for overflow
                 let vx_val = self.registers[vx];
@@ -248,14 +245,23 @@ impl Chip8VM {
                     self.registers[0xF] = 0;
                 }
             }
-            Sub(vx, vy) => {
-                debug!("Subtracting register {} from register {}", vy, vx);
+            SubLeft(vx, vy) => {
                 let vx_val = self.registers[vx];
                 let vy_val = self.registers[vy];
-                self.registers.sub(vx, vy_val);
-
+                self.registers[vx] = vx_val.wrapping_sub(vy_val);
                 // Set carry flag for underflow
                 if vx_val > vy_val {
+                    self.registers[0xF] = 1;
+                } else {
+                    self.registers[0xF] = 0;
+                }
+            }
+            SubRight(vx, vy) => {
+                let vx_val = self.registers[vx];
+                let vy_val = self.registers[vy];
+                self.registers[vx] = vy_val.wrapping_sub(vx_val);
+                // Set carry flag for underflow
+                if vy_val > vx_val {
                     self.registers[0xF] = 1;
                 } else {
                     self.registers[0xF] = 0;
@@ -410,17 +416,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn execute_set_val() {
-        let vm_result = Chip8VM::new();
-        assert!(vm_result.is_ok());
-        let mut vm = vm_result.unwrap();
-        let result = vm.execute(Instruction::SetVal(1, 2));
-        assert!(result.is_ok());
-        assert_eq!(vm.registers[1], 2);
-    }
-
-    #[test]
-    fn execute_registers_8bits() {
+    fn test_registers_8bits() {
         let vm_result = Chip8VM::new();
         assert!(vm_result.is_ok());
         let mut vm = vm_result.unwrap();
@@ -456,20 +452,16 @@ mod tests {
         assert_eq!(vm.registers[6], 5);
         assert!(vm.execute(Instruction::SetVal(0, 10)).is_ok());
         assert_eq!(vm.registers[0], 10);
-        assert!(vm.execute(Instruction::Sub(6, 0)).is_ok());
+        assert!(vm.execute(Instruction::SubLeft(6, 0)).is_ok());
         assert_eq!(vm.registers[6], 251);
 
         assert!(vm.execute(Instruction::SetVal(6, 5)).is_ok());
         assert_eq!(vm.registers[6], 5);
-        assert!(vm.execute(Instruction::Sub(6, 0)).is_ok());
+        assert!(vm.execute(Instruction::SubLeft(6, 0)).is_ok());
         assert_eq!(vm.registers[6], 251);
         assert!(vm.execute(Instruction::SetVal(6, 5)).is_ok());
         assert_eq!(vm.registers[6], 5);
-
-        // v0 =- v6
-        assert!(vm
-            .execute(Instruction::SetVal(0, vm.registers[6].wrapping_neg()))
-            .is_ok());
+        assert!(vm.execute(Instruction::SubRight(0, 6)).is_ok());
         assert_eq!(vm.registers[0], 251);
     }
 }

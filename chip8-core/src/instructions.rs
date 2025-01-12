@@ -20,8 +20,9 @@ pub enum Instruction {
     AND(Vx, Vy),             // 8XY2
     XOR(Vx, Vy),             // 8XY3
     Add(Vx, Vy),             // 8XY4
-    Sub(Vx, Vy),             // 8XY5, 8XY7
+    SubLeft(Vx, Vy),         // 8XY5
     ShiftRight(Vx, Vy),      // 8XY6
+    SubRight(Vx, Vy),        // 8XY7
     ShiftLeft(Vx, Vy),       // 8XYE
     SkipRegNotEqual(Vx, Vy), // 9XY0
     SetIndex(Addr),          // ANNN
@@ -65,9 +66,9 @@ impl Instruction {
                 0x2 => AND(d_reg1(instr), d_reg2(instr)),
                 0x3 => XOR(d_reg1(instr), d_reg2(instr)),
                 0x4 => Add(d_reg1(instr), d_reg2(instr)),
-                0x5 => Sub(d_reg1(instr), d_reg2(instr)),
+                0x5 => SubLeft(d_reg1(instr), d_reg2(instr)),
                 0x6 => ShiftRight(d_reg1(instr), d_reg2(instr)),
-                0x7 => Sub(d_reg2(instr), d_reg1(instr)),
+                0x7 => SubRight(d_reg1(instr), d_reg2(instr)),
                 0xE => ShiftLeft(d_reg1(instr), d_reg2(instr)),
                 _ => Unknown(instr),
             },
@@ -136,7 +137,8 @@ decode_tests! {
     t12: 0x8232, Instruction::AND(2, 3),
     t13: 0x8233, Instruction::XOR(2, 3),
     t14: 0x8234, Instruction::Add(2, 3),
-    t15: 0x8235, Instruction::Sub(2, 3),
+    t15: 0x8235, Instruction::SubLeft(2, 3),
+    t15_1: 0x8237, Instruction::SubRight(2, 3),
     t16: 0x8236, Instruction::ShiftRight(2, 3),
     t17: 0x9230, Instruction::SkipRegNotEqual(2, 3),
     t18: 0xA123, Instruction::SetIndex(0x0123),
