@@ -230,10 +230,10 @@ impl Chip8VM {
             Add(vx, vy) => {
                 debug!("Adding register {} to register {}", vy, vx);
                 let vy_val = self.registers[vy];
+                let vx_val = self.registers[vx];
                 self.registers[vx] = self.registers[vx].wrapping_add(vy_val);
 
                 // Set carry flag for overflow
-                let vx_val = self.registers[vx];
                 if (vx_val as u32) + (vy_val as u32) > 255 {
                     self.registers[0xF] = 1;
                 } else {
@@ -245,22 +245,14 @@ impl Chip8VM {
                 let vy_val = self.registers[vy];
                 self.registers[vx] = vx_val.wrapping_sub(vy_val);
                 // Set carry flag for underflow
-                if vx_val > vy_val {
-                    self.registers[0xF] = 1;
-                } else {
-                    self.registers[0xF] = 0;
-                }
+                self.registers[0xF] = if vx_val >= vy_val { 1 } else { 0 };
             }
             SubRight(vx, vy) => {
                 let vx_val = self.registers[vx];
                 let vy_val = self.registers[vy];
                 self.registers[vx] = vy_val.wrapping_sub(vx_val);
                 // Set carry flag for underflow
-                if vy_val > vx_val {
-                    self.registers[0xF] = 1;
-                } else {
-                    self.registers[0xF] = 0;
-                }
+                self.registers[0xF] = if vy_val >= vx_val { 1 } else { 0 };
             }
             ShiftRight(vx, _) => {
                 debug!("Shifting register {} right", vx);
