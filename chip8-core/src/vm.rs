@@ -337,7 +337,7 @@ impl Chip8VM {
                 debug!("Skipping if key in register {} is not pressed", vx);
                 let vx_val: u8 = self.registers[vx];
                 let key: Key = Key::try_from(vx_val)?;
-                if self.keypad[key] == KeyState::Pressed {
+                if self.keypad[key] == KeyState::NotPressed {
                     self.registers.pc += 2;
                 }
             }
@@ -358,7 +358,8 @@ impl Chip8VM {
                 self.index_register += self.registers[vx] as usize;
             }
             GetKey(vx) => {
-                debug!("Waiting for key press to store in register {}", vx);
+                println!("Waiting for key press to store in register {}", vx);
+                self.registers.pc -= 2;
                 self.key_wait = Some(vx);
             }
             FontChar(vx) => {
