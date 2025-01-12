@@ -60,6 +60,7 @@ impl Emulator {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
+            self.vm.tick_timers();
         }
         Ok(())
     }

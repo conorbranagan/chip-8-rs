@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::display::Display;
 use crate::instructions::Instruction;
-use crate::keypad::{Key, KeyState, Keypad};
+use crate::keypad::{Key, KeyState, KeyWait, Keypad};
 use crate::memory::{Memory, Stack};
 
 const NUM_REGISTERS: usize = 16;
@@ -74,7 +74,6 @@ pub struct Chip8VM {
     stack: Stack,
     keypad: Keypad,
     index_register: usize,
-    key_wait: Option<RegNum>,
     delay_timer: u8,
     sound_timer: u8,
 }
@@ -94,10 +93,15 @@ impl Chip8VM {
             memory: Memory::new(),
             display: Display::new(),
             registers: Registers::new(),
+            // stack manages addresses for subroutines
             stack: Stack::default(),
+            // keypad tracks state of pressed keys for GetKey, Skip*Pressed instructions.
+            // clients must call handle_key when keys are pressed/released.
             keypad: Keypad::new(),
-            key_wait: None,
+            // index_register (I) is primarily used for managing where to read sprit data for display.
             index_register: 0,
+            // timers will decrement until reaching zero and stop until they are set again.
+            // clients should call tick_timers for this decrement at 60hz
             delay_timer: 0,
             sound_timer: 0,
         })
@@ -119,7 +123,7 @@ impl Chip8VM {
     pub fn run_cycle(&mut self) -> Result<(), VMError> {
         // When we're waiting on a key we won't execute any more instructions
         // until handle_key is called and `key_wait` gets reset.
-        if self.key_wait.is_some() {
+        if self.keypad.is_waiting() {
             return Ok(());
         }
 
@@ -140,6 +144,19 @@ impl Chip8VM {
         self.display.get_framebuffer()
     }
 
+    pub fn tick_timers(&mut self) {
+        self.delay_timer = if self.delay_timer == 0 {
+            0
+        } else {
+            self.delay_timer - 1
+        };
+        self.sound_timer = if self.sound_timer == 0 {
+            0
+        } else {
+            self.sound_timer - 1
+        };
+    }
+
     pub fn handle_key(&mut self, key_code: u8, is_pressed: bool) {
         if let Ok(key) = Key::try_from(key_code) {
             self.keypad[key] = if is_pressed {
@@ -147,10 +164,20 @@ impl Chip8VM {
             } else {
                 KeyState::NotPressed
             };
-        }
-        if let Some(vx) = self.key_wait {
-            self.registers[vx] = key_code;
-            self.key_wait = None;
+
+            match self.keypad.wait_state() {
+                KeyWait::WaitingForPress(vx) => {
+                    self.registers[vx] = key_code;
+                    self.keypad.set_wait(KeyWait::WaitingForRelease(key_code));
+                }
+                KeyWait::WaitingForRelease(wait_key_code) => {
+                    if key_code == wait_key_code {
+                        self.keypad.set_wait(KeyWait::NotWaiting);
+                        self.registers.pc += 2;
+                    }
+                }
+                _ => {}
+            }
         }
     }
 
@@ -177,11 +204,8 @@ impl Chip8VM {
             }
             CallSubroutine(addr) => {
                 debug!("Calling subroutine at address {:#X}", addr);
-                if self.stack.push(self.registers.pc as u16).is_ok() {
-                    self.registers.pc = addr as usize;
-                } else {
-                    panic!("alksfjalksjfalksjf");
-                }
+                self.stack.push(self.registers.pc as u16)?;
+                self.registers.pc = addr as usize;
             }
             SkipValEqual(vx, val) => {
                 debug!("Skipping if register {} equals value {:#X}", vx, val);
@@ -345,7 +369,7 @@ impl Chip8VM {
                 self.registers[vx] = self.delay_timer;
             }
             SetDelayTimer(vx) => {
-                debug!("Setting delay timer to value in register {}", vx);
+                debug!("Setting delay timer to {}", self.registers[vx]);
                 self.delay_timer = self.registers[vx];
             }
             SetSoundTimer(vx) => {
@@ -357,9 +381,11 @@ impl Chip8VM {
                 self.index_register += self.registers[vx] as usize;
             }
             GetKey(vx) => {
-                debug!("Waiting for key press to store in register {}", vx);
-                self.registers.pc -= 2;
-                self.key_wait = Some(vx);
+                if !self.keypad.is_waiting() {
+                    debug!("Waiting for key press to store in register {}", vx);
+                    self.registers.pc -= 2;
+                    self.keypad.set_wait(KeyWait::WaitingForPress(vx));
+                }
             }
             FontChar(vx) => {
                 debug!("Setting index to font character for register {}", vx);

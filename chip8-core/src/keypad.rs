@@ -65,6 +65,15 @@ impl TryFrom<u8> for Key {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum KeyWait {
+    NotWaiting,
+    WaitingForPress(u8),
+    WaitingForRelease(u8),
+}
+
+impl KeyWait {}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyState {
     NotPressed,
@@ -73,13 +82,31 @@ pub enum KeyState {
 
 pub(crate) struct Keypad {
     state: [KeyState; 16],
+    wait_state: KeyWait,
 }
 
 impl Keypad {
     pub(crate) fn new() -> Self {
         Keypad {
             state: [KeyState::NotPressed; 16],
+            wait_state: KeyWait::NotWaiting,
         }
+    }
+
+    pub(crate) fn is_waiting(&mut self) -> bool {
+        match self.wait_state {
+            KeyWait::NotWaiting => false,
+            KeyWait::WaitingForPress(_) => true,
+            KeyWait::WaitingForRelease(_) => true,
+        }
+    }
+
+    pub(crate) fn wait_state(&mut self) -> KeyWait {
+        self.wait_state
+    }
+
+    pub(crate) fn set_wait(&mut self, wait_state: KeyWait) {
+        self.wait_state = wait_state
     }
 }
 
