@@ -225,9 +225,7 @@ impl Chip8VM {
             }
             OR(vx, vy) => {
                 debug!("ORing register {} with register {}", vx, vy);
-                let vx_val = self.registers[vx];
-                let vy_val = self.registers[vy];
-                self.registers[vx] = vx_val | vy_val;
+                self.registers[vx] |= self.registers[vy];
             }
             AND(vx, vy) => {
                 debug!("ANDing register {} with register {}", vx, vy);

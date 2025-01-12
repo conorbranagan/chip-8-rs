@@ -83,6 +83,7 @@ impl Emulator {
             // Each pixel is 4 bytes (rbga) so we chunk and map from bool buf -> pixels.
             for (i, pixel) in pixels.frame_mut().chunks_exact_mut(4).enumerate() {
                 let vm_pixel = vm_frame[i];
+                // purple on black background
                 let rgba = if vm_pixel {
                     [0x5e, 0x48, 0xe8, 0xff]
                 } else {
