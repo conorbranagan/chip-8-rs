@@ -13,23 +13,15 @@ impl Display {
     }
 
     pub(crate) fn set(&mut self, x: usize, y: usize, val: bool) {
-        if y >= self.pixels.len() || x >= self.pixels[y].len() {
-            // Cut off bytes outside of the display.
-            return;
-        }
-        self.pixels[y & (Display::HEIGHT - 1) as usize][x & (Display::WIDTH - 1) as usize] = val;
+        let wrapped_y = y & (Display::HEIGHT - 1);
+        let wrapped_x = x & (Display::WIDTH - 1);
+        self.pixels[wrapped_y][wrapped_x] = val;
     }
 
-    pub(crate) fn get(&mut self, x: usize, y: usize) -> Result<bool, String> {
-        if y >= self.pixels.len() || x >= self.pixels[y].len() {
-            // Cut off bytes outside of the display.
-            return Ok(false);
-        }
-
-        if y >= self.pixels.len() || x >= self.pixels[y].len() {
-            return Err(format!("pixel ({},{}) out of range", x, y));
-        }
-        Ok(self.pixels[y][x])
+    pub(crate) fn get(&self, x: usize, y: usize) -> Result<bool, String> {
+        let wrapped_y = y & (Display::HEIGHT - 1);
+        let wrapped_x = x & (Display::WIDTH - 1);
+        Ok(self.pixels[wrapped_y][wrapped_x])
     }
 
     pub(crate) fn clear(&mut self) {

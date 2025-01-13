@@ -316,15 +316,16 @@ impl Chip8VM {
                     let mut x_offset = 0;
                     for bit in (0..8).rev() {
                         let b: u8 = sprite_byte >> bit & 1;
-                        let x = (x_coord + x_offset) as usize;
+                        let x = (x_coord as usize + x_offset) as usize;
                         let y = (y_coord + row) as usize;
-                        let p = self.display.get(x, y);
-
-                        if b == 1 && p.unwrap() {
-                            self.display.set(x, y, false);
-                            vf = 1;
-                        } else {
-                            self.display.set(x, y, b == 1);
+                        if b == 1 {
+                            let current_pixel = self.display.get(x, y).unwrap_or(false);
+                            // chip-8 uses XOR logic for setting pixels
+                            let new_pixel = current_pixel ^ true;
+                            if current_pixel && !new_pixel {
+                                vf = 1;
+                            }
+                            self.display.set(x, y, new_pixel);
                         }
                         x_offset += 1;
                     }
