@@ -23,9 +23,6 @@ pub enum VMError {
     #[error("Rom load error: {0}")]
     RomLoadFailure(String),
 
-    #[error("Failed to create log file: {0}")]
-    FileCreationError(#[from] std::io::Error),
-
     #[error("Stack underflow")]
     StackUnderflow(),
 
