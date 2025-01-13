@@ -3,6 +3,7 @@ use chip8_core::vm::{Chip8VM, VMError};
 use pixels::{Pixels, SurfaceTexture};
 use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
 use std::fs::File;
+use std::path::Path;
 use std::time::{Duration, Instant};
 use std::{env, sync::Arc};
 use winit::application::ApplicationHandler;
@@ -49,6 +50,7 @@ fn main() {
 
 struct Emulator {
     vm: Chip8VM,
+    rom_name: String,
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
     // manage cycle and timer iterations independently
@@ -60,8 +62,14 @@ impl Emulator {
     fn new(rom_path: String) -> Result<Self, VMError> {
         let mut vm = Chip8VM::new();
         vm.load_rom(&rom_path)?;
+        let file_name = Path::new(rom_path.as_str())
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         Ok(Self {
             vm: vm,
+            rom_name: file_name,
             window: None,
             pixels: None,
             last_cycle: Instant::now(),
@@ -91,7 +99,7 @@ impl Emulator {
 
     fn draw_frame(&mut self) {
         if let Some(pixels) = &mut self.pixels {
-            let vm_frame = &self.vm.get_framebuffer();
+            let vm_frame = self.vm.get_frame_buffer();
 
             // Each pixel is 4 bytes (rbga) so we chunk and map from bool buf -> pixels.
             for (i, pixel) in pixels.frame_mut().chunks_exact_mut(4).enumerate() {
@@ -138,7 +146,7 @@ impl Emulator {
 impl ApplicationHandler for Emulator {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let window_attributes = Window::default_attributes()
-            .with_title("Chip-8 Emulator")
+            .with_title(format!("Chip-8 - {}", self.rom_name))
             .with_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT))
             .with_min_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());

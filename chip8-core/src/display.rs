@@ -28,7 +28,7 @@ impl Display {
         self.pixels = [[false; Display::WIDTH]; Display::HEIGHT];
     }
 
-    pub(crate) fn get_framebuffer(&mut self) -> &[bool] {
+    pub(crate) fn get_frame_buffer(&mut self) -> &[bool] {
         self.pixels.as_flattened()
     }
 }
@@ -45,5 +45,12 @@ mod tests {
         assert_eq!(display.get(1, 3).unwrap(), false);
         display.clear();
         assert_eq!(display.get(1, 2).unwrap(), false);
+    }
+
+    #[test]
+    fn test_display_wrap() {
+        let mut display = Display::new();
+        display.set(123, 45, true);
+        assert_eq!(display.get(59, 13).unwrap(), true);
     }
 }

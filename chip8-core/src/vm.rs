@@ -126,8 +126,8 @@ impl Chip8VM {
         self.execute(instr)
     }
 
-    pub fn get_framebuffer(&mut self) -> &[bool] {
-        self.display.get_framebuffer()
+    pub fn get_frame_buffer(&mut self) -> &[bool] {
+        self.display.get_frame_buffer()
     }
 
     pub fn tick_timers(&mut self) {
@@ -242,10 +242,10 @@ impl Chip8VM {
                 self.registers[vx] = self.registers[vx].wrapping_add(vy_val);
 
                 // Set carry flag for overflow
-                if (vx_val as u32) + (vy_val as u32) > 255 {
-                    self.registers[0xF] = 1;
+                self.registers[0xF] = if (vx_val as u32) + (vy_val as u32) > 255 {
+                    1
                 } else {
-                    self.registers[0xF] = 0;
+                    0
                 }
             }
             SubLeft(vx, vy) => {

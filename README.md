@@ -18,6 +18,13 @@ There are 2 crates in here:
 
 <img src="./images/flags.png" width="400">
 
+**Space Invaders**
+
+<img src="./images/space-invaders.png" width="400">
+
+**Tetris**
+
+<img src="./images/tetris.png" width="400">
 
 ## Notes
 
