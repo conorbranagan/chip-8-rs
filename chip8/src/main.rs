@@ -1,7 +1,7 @@
 use chip8_core::display::Display;
 use chip8_core::vm::{Chip8VM, VMError};
 use pixels::{Pixels, SurfaceTexture};
-use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
+use simplelog;
 use std::fs::File;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -26,16 +26,16 @@ fn main() {
         return;
     }
 
-    let rom_path = args.get(1).unwrap();
-
     let log_file = File::create(LOG_FILE).unwrap();
-    CombinedLogger::init(vec![WriteLogger::new(
-        LevelFilter::Info,
-        Config::default(),
+    simplelog::CombinedLogger::init(vec![simplelog::WriteLogger::new(
+        // Set to debug to get full instruction logging.
+        simplelog::LevelFilter::Info,
+        simplelog::Config::default(),
         log_file,
     )])
     .unwrap();
 
+    let rom_path = args.get(1).unwrap();
     match Emulator::new(rom_path.to_string()) {
         Ok(mut emu) => {
             let event_loop: EventLoop<()> = EventLoop::new().unwrap();
@@ -52,7 +52,7 @@ struct Emulator {
     vm: Chip8VM,
     rom_name: String,
     window: Option<Arc<Window>>,
-    pixels: Option<Pixels<'static>>,
+    frame_buffer: Option<Pixels<'static>>,
     // manage cycle and timer iterations independently
     last_cycle: Instant,
     last_timer_update: Instant,
@@ -71,7 +71,7 @@ impl Emulator {
             vm: vm,
             rom_name: file_name,
             window: None,
-            pixels: None,
+            frame_buffer: None,
             last_cycle: Instant::now(),
             last_timer_update: Instant::now(),
         })
@@ -88,7 +88,7 @@ impl Emulator {
             self.vm.tick_timers();
             self.last_timer_update = now;
 
-            // Request redraw at timer frequency
+            // Redraw at the timer frequency of 60hz
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -98,7 +98,7 @@ impl Emulator {
     }
 
     fn draw_frame(&mut self) {
-        if let Some(pixels) = &mut self.pixels {
+        if let Some(pixels) = &mut self.frame_buffer {
             let vm_frame = self.vm.get_frame_buffer();
 
             // Each pixel is 4 bytes (rbga) so we chunk and map from bool buf -> pixels.
@@ -118,6 +118,10 @@ impl Emulator {
 
     fn handle_key(&mut self, code: KeyCode, is_pressed: bool) {
         // Map key codes to computer-keyboard-friendly codes.
+        // [1, 2, 3, 4]
+        // [Q, W, E, R]
+        // [A, S, D, F]
+        // [Z, X, C, V]
         let key_code: u8 = {
             match code {
                 KeyCode::Digit1 => 0x1,
@@ -150,7 +154,7 @@ impl ApplicationHandler for Emulator {
             .with_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT))
             .with_min_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
-        let pixels = {
+        let fb = {
             let window_size = window.inner_size();
             let surface_texture =
                 SurfaceTexture::new(window_size.width, window_size.height, window.clone());
@@ -163,7 +167,7 @@ impl ApplicationHandler for Emulator {
         };
 
         self.window = Some(window.clone());
-        self.pixels = Some(pixels);
+        self.frame_buffer = Some(fb);
     }
 
     fn window_event(
@@ -178,7 +182,7 @@ impl ApplicationHandler for Emulator {
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {
-                if let Some(pixels) = &mut self.pixels {
+                if let Some(pixels) = &mut self.frame_buffer {
                     if let Err(err) = pixels.resize_surface(size.width, size.height) {
                         println!("pixels.resize_surface: {:?}", err);
                         event_loop.exit();
