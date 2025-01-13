@@ -20,9 +20,14 @@ impl Display {
         self.pixels[y & (Display::HEIGHT - 1) as usize][x & (Display::WIDTH - 1) as usize] = val;
     }
 
-    pub(crate) fn get(&mut self, x: usize, y: usize) -> Result<bool, &str> {
+    pub(crate) fn get(&mut self, x: usize, y: usize) -> Result<bool, String> {
         if y >= self.pixels.len() || x >= self.pixels[y].len() {
-            return Err("pixel out of range");
+            // Cut off bytes outside of the display.
+            return Ok(false);
+        }
+
+        if y >= self.pixels.len() || x >= self.pixels[y].len() {
+            return Err(format!("pixel ({},{}) out of range", x, y));
         }
         Ok(self.pixels[y][x])
     }

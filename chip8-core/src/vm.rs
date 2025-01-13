@@ -106,7 +106,7 @@ impl Chip8VM {
         }
     }
 
-    pub fn run_cycle(&mut self) -> Result<(), VMError> {
+    pub fn cycle(&mut self) -> Result<(), VMError> {
         // When we're waiting on a key we won't execute any more instructions
         // until handle_key is called and `key_wait` gets reset.
         if self.keypad.is_waiting() {

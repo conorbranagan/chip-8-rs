@@ -3,6 +3,7 @@ use chip8_core::vm::{Chip8VM, VMError};
 use pixels::{Pixels, SurfaceTexture};
 use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
 use std::fs::File;
+use std::time::{Duration, Instant};
 use std::{env, sync::Arc};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
@@ -11,9 +12,10 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
 
-const HZ: u64 = 60;
 const WINDOW_WIDTH: u32 = 512;
 const WINDOW_HEIGHT: u32 = 256;
+const TIMER_INTERVAL: Duration = Duration::from_micros(1_000_000 / 60); // 60Hz
+const CYCLE_INTERVAL: Duration = Duration::from_micros(1_000_000 / 500); // 500Hz
 const LOG_FILE: &str = "chip8-debug.log";
 
 fn main() {
@@ -46,10 +48,12 @@ fn main() {
 }
 
 struct Emulator {
+    vm: Chip8VM,
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
-    vm: Chip8VM,
-    cycles: u64,
+    // manage cycle and timer iterations independently
+    last_cycle: Instant,
+    last_timer_update: Instant,
 }
 
 impl Emulator {
@@ -57,22 +61,31 @@ impl Emulator {
         let mut vm = Chip8VM::new();
         vm.load_rom(&rom_path)?;
         Ok(Self {
-            pixels: None,
             vm: vm,
-            cycles: 0,
             window: None,
+            pixels: None,
+            last_cycle: Instant::now(),
+            last_timer_update: Instant::now(),
         })
     }
 
-    fn run_cycle(&mut self) -> Result<(), VMError> {
-        self.vm.run_cycle()?;
-        self.cycles += 1;
-        if self.cycles % HZ == 0 {
+    fn cycle(&mut self) -> Result<(), VMError> {
+        let now = Instant::now();
+        if now.duration_since(self.last_cycle) > CYCLE_INTERVAL {
+            self.vm.cycle()?;
+            self.last_cycle = now;
+        }
+
+        if now.duration_since(self.last_timer_update) > TIMER_INTERVAL {
+            self.vm.tick_timers();
+            self.last_timer_update = now;
+
+            // Request redraw at timer frequency
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
-            self.vm.tick_timers();
         }
+
         Ok(())
     }
 
@@ -178,7 +191,7 @@ impl ApplicationHandler for Emulator {
     }
 
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        if let Err(err) = self.run_cycle() {
+        if let Err(err) = self.cycle() {
             println!("failed to run cycle: {}", err);
             event_loop.exit();
         }
