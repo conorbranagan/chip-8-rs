@@ -2,8 +2,18 @@
 name = "chip8_core"
 version = "0.1.0"
 edition = "2021"
+authors = ["Terragon Labs"]
+description = "Core CHIP-8 emulator virtual machine and components"
+license = "MIT"
+repository = "https://github.com/your-username/chip8-emulator"
+readme = "../README.md"
+keywords = ["emulator", "chip8", "retro", "gaming"]
+categories = ["emulators", "games"]
 
 [dependencies]
-rand = "0.8" 
+rand = "0.8"
 log = "0.4"
-thiserror = "2.0.11"
+thiserror = "2.0"
+
+[dev-dependencies]
+env_logger = "0.11"

@@ -38,11 +38,11 @@ struct Registers {
 type RegNum = u8;
 
 impl Registers {
-    fn new() -> Registers {
-        return Registers {
+    fn new() -> Self {
+        Self {
             data: [0; NUM_REGISTERS],
             pc: ROM_START,
-        };
+        }
     }
 }
 
@@ -70,9 +70,15 @@ pub struct Chip8VM {
     sound_timer: u8,
 }
 
+impl Default for Chip8VM {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Chip8VM {
-    pub fn new() -> Chip8VM {
-        Chip8VM {
+    pub fn new() -> Self {
+        Self {
             memory: Memory::new(),
             display: Display::new(),
             registers: Registers::new(),
@@ -309,11 +315,10 @@ impl Chip8VM {
                 let mut ireg: usize = self.index_register;
 
                 for row in 0..height {
-                    let sprite_byte: u8 = self.memory.read(ireg as usize);
-                    let mut x_offset = 0;
-                    for bit in (0..8).rev() {
+                    let sprite_byte: u8 = self.memory.read(ireg);
+                    for (x_offset, bit) in (0..8).rev().enumerate() {
                         let b: u8 = sprite_byte >> bit & 1;
-                        let x = (x_coord as usize + x_offset) as usize;
+                        let x = x_coord as usize + x_offset;
                         let y = (y_coord + row) as usize;
                         if b == 1 {
                             let current_pixel = self.display.get(x, y).unwrap_or(false);
@@ -324,7 +329,6 @@ impl Chip8VM {
                             }
                             self.display.set(x, y, new_pixel);
                         }
-                        x_offset += 1;
                     }
                     ireg += 1;
                 }

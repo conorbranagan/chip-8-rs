@@ -1,3 +1,4 @@
 target/
 chip8-debug.log
 .DS_Store
+Cargo.lock

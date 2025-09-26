@@ -2,12 +2,25 @@
 name = "chip8"
 version = "0.1.0"
 edition = "2021"
+authors = ["Terragon Labs"]
+description = "CHIP-8 emulator with graphics and input handling"
+license = "MIT"
+repository = "https://github.com/your-username/chip8-emulator"
+readme = "../README.md"
+keywords = ["emulator", "chip8", "retro", "gaming"]
+categories = ["emulators", "games"]
 
+[[bin]]
+name = "chip8"
+path = "src/main.rs"
 
 [dependencies]
 chip8_core = { path = "../chip8-core" }
-pixels = "0.15.0"
+pixels = "0.15"
 log = "0.4"
 simplelog = "0.12"
-winit = "0.30.8"
+winit = "0.30"
 winit_input_helper = "0.15"
+
+[dev-dependencies]
+env_logger = "0.11"

@@ -6,30 +6,37 @@ impl Display {
     pub const WIDTH: usize = 64;
     pub const HEIGHT: usize = 32;
 
-    pub(crate) fn new() -> Display {
-        Display {
-            pixels: [[false; Display::WIDTH]; Display::HEIGHT],
+    pub(crate) fn new() -> Self {
+        Self {
+            pixels: [[false; Self::WIDTH]; Self::HEIGHT],
         }
     }
 
     pub(crate) fn set(&mut self, x: usize, y: usize, val: bool) {
-        let wrapped_y = y & (Display::HEIGHT - 1);
-        let wrapped_x = x & (Display::WIDTH - 1);
+        let wrapped_y = y & (Self::HEIGHT - 1);
+        let wrapped_x = x & (Self::WIDTH - 1);
         self.pixels[wrapped_y][wrapped_x] = val;
     }
 
     pub(crate) fn get(&self, x: usize, y: usize) -> Result<bool, String> {
-        let wrapped_y = y & (Display::HEIGHT - 1);
-        let wrapped_x = x & (Display::WIDTH - 1);
+        let wrapped_y = y & (Self::HEIGHT - 1);
+        let wrapped_x = x & (Self::WIDTH - 1);
         Ok(self.pixels[wrapped_y][wrapped_x])
     }
 
     pub(crate) fn clear(&mut self) {
-        self.pixels = [[false; Display::WIDTH]; Display::HEIGHT];
+        self.pixels = [[false; Self::WIDTH]; Self::HEIGHT];
     }
 
     pub(crate) fn get_frame_buffer(&mut self) -> &[bool] {
-        self.pixels.as_flattened()
+        // Using flatten for MSRV compatibility instead of as_flattened
+        let flattened: &[bool] = unsafe {
+            std::slice::from_raw_parts(
+                self.pixels.as_ptr() as *const bool,
+                Self::WIDTH * Self::HEIGHT,
+            )
+        };
+        flattened
     }
 }
 

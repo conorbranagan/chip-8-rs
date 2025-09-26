@@ -1,17 +1,25 @@
-use chip8_core::display::Display;
-use chip8_core::vm::{Chip8VM, VMError};
+use std::{
+    env,
+    fs::File,
+    path::Path,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use chip8_core::{
+    display::Display,
+    vm::{Chip8VM, VMError},
+};
 use pixels::{Pixels, SurfaceTexture};
 use simplelog;
-use std::fs::File;
-use std::path::Path;
-use std::time::{Duration, Instant};
-use std::{env, sync::Arc};
-use winit::application::ApplicationHandler;
-use winit::dpi::LogicalSize;
-use winit::event::WindowEvent;
-use winit::event_loop::{ControlFlow, EventLoop};
-use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::Window;
+use winit::{
+    application::ApplicationHandler,
+    dpi::LogicalSize,
+    event::WindowEvent,
+    event_loop::{ControlFlow, EventLoop},
+    keyboard::{KeyCode, PhysicalKey},
+    window::Window,
+};
 
 const WINDOW_WIDTH: u32 = 512;
 const WINDOW_HEIGHT: u32 = 256;
@@ -68,7 +76,7 @@ impl Emulator {
             .to_string_lossy()
             .into_owned();
         Ok(Self {
-            vm: vm,
+            vm,
             rom_name: file_name,
             window: None,
             frame_buffer: None,
@@ -122,26 +130,24 @@ impl Emulator {
         // [Q, W, E, R]
         // [A, S, D, F]
         // [Z, X, C, V]
-        let key_code: u8 = {
-            match code {
-                KeyCode::Digit1 => 0x1,
-                KeyCode::Digit2 => 0x2,
-                KeyCode::Digit3 => 0x3,
-                KeyCode::Digit4 => 0xC,
-                KeyCode::KeyQ => 0x4,
-                KeyCode::KeyW => 0x5,
-                KeyCode::KeyE => 0x6,
-                KeyCode::KeyR => 0xD,
-                KeyCode::KeyA => 0x7,
-                KeyCode::KeyS => 0x8,
-                KeyCode::KeyD => 0x9,
-                KeyCode::KeyF => 0xE,
-                KeyCode::KeyZ => 0xA,
-                KeyCode::KeyX => 0x0,
-                KeyCode::KeyC => 0xB,
-                KeyCode::KeyV => 0xF,
-                _ => 0x10,
-            }
+        let key_code: u8 = match code {
+            KeyCode::Digit1 => 0x1,
+            KeyCode::Digit2 => 0x2,
+            KeyCode::Digit3 => 0x3,
+            KeyCode::Digit4 => 0xC,
+            KeyCode::KeyQ => 0x4,
+            KeyCode::KeyW => 0x5,
+            KeyCode::KeyE => 0x6,
+            KeyCode::KeyR => 0xD,
+            KeyCode::KeyA => 0x7,
+            KeyCode::KeyS => 0x8,
+            KeyCode::KeyD => 0x9,
+            KeyCode::KeyF => 0xE,
+            KeyCode::KeyZ => 0xA,
+            KeyCode::KeyX => 0x0,
+            KeyCode::KeyC => 0xB,
+            KeyCode::KeyV => 0xF,
+            _ => 0x10,
         };
         self.vm.handle_key(key_code, is_pressed);
     }
