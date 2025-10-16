@@ -30,20 +30,31 @@ impl Memory {
         let mut m = Memory {
             data: [0; RAM_SIZE],
         };
+        // Load font data into memory starting at address 0
+        // Each font character is 5 bytes
         for (i, row) in FONT.iter().enumerate() {
             for (j, col) in row.iter().enumerate() {
-                m.data[(i * row.len()) * j] = *col
+                let addr = (i * 5) + j;
+                if addr < RAM_SIZE {
+                    m.data[addr] = *col;
+                }
             }
         }
         m
     }
 
     pub(crate) fn write(&mut self, addr: usize, val: u8) {
-        self.data[addr] = val;
+        if addr < RAM_SIZE {
+            self.data[addr] = val;
+        }
     }
 
     pub(crate) fn read(&mut self, addr: usize) -> u8 {
-        self.data[addr]
+        if addr < RAM_SIZE {
+            self.data[addr]
+        } else {
+            0
+        }
     }
 }
 
@@ -97,9 +108,10 @@ mod tests {
     #[test]
     fn test_memory() {
         let mut memory = Memory::new();
-        memory.write(0x12, 1);
-        assert_eq!(memory.read(0x12), 1);
-        assert_eq!(memory.read(0x13), 0);
+        // Use addresses beyond font data (font occupies 0x00-0x4F, 16 chars * 5 bytes)
+        memory.write(0x100, 1);
+        assert_eq!(memory.read(0x100), 1);
+        assert_eq!(memory.read(0x101), 0);
     }
 
     #[test]
@@ -108,6 +120,6 @@ mod tests {
         assert!(stack.push(1).is_ok());
         let result = stack.pop();
         assert!(result.is_ok());
-        assert_eq!(stack.pop().unwrap(), 1);
+        assert_eq!(result.unwrap(), 1);
     }
 }

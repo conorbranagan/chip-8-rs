@@ -49,13 +49,15 @@ impl Registers {
 impl Index<RegNum> for Registers {
     type Output = u8;
     fn index(&self, index: RegNum) -> &Self::Output {
-        &self.data[index as usize]
+        let idx = (index as usize) % NUM_REGISTERS;
+        &self.data[idx]
     }
 }
 
 impl IndexMut<RegNum> for Registers {
     fn index_mut(&mut self, index: RegNum) -> &mut Self::Output {
-        &mut self.data[index as usize]
+        let idx = (index as usize) % NUM_REGISTERS;
+        &mut self.data[idx]
     }
 }
 
@@ -93,6 +95,16 @@ impl Chip8VM {
     pub fn load_rom(&mut self, rom_path: &String) -> Result<(), VMError> {
         match fs::read(rom_path) {
             Ok(rom_bytes) => {
+                // Validate ROM size - must fit in memory (4KB - ROM_START)
+                const MAX_ROM_SIZE: usize = 4096 - ROM_START;
+                if rom_bytes.len() > MAX_ROM_SIZE {
+                    return Err(VMError::RomLoadFailure(format!(
+                        "ROM too large: {} bytes (max: {} bytes)",
+                        rom_bytes.len(),
+                        MAX_ROM_SIZE
+                    )));
+                }
+
                 for (i, b) in rom_bytes.iter().enumerate() {
                     self.memory.write(ROM_START + i, *b);
                 }
@@ -360,7 +372,8 @@ impl Chip8VM {
             }
             AddToIndex(vx) => {
                 debug!("Adding register {} to index register", vx);
-                self.index_register += self.registers[vx] as usize;
+                // Mask to 12 bits to keep index within valid memory range (0x000-0xFFF)
+                self.index_register = (self.index_register + self.registers[vx] as usize) & 0xFFF;
             }
             GetKey(vx) => {
                 if !self.keypad.is_waiting() {
