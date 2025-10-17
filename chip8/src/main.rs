@@ -26,19 +26,40 @@ fn main() {
         return;
     }
 
-    let log_file = File::create(LOG_FILE).unwrap();
-    simplelog::CombinedLogger::init(vec![simplelog::WriteLogger::new(
+    let log_file = match File::create(LOG_FILE) {
+        Ok(f) => f,
+        Err(e) => {
+            println!("Failed to create log file: {}", e);
+            return;
+        }
+    };
+
+    if let Err(e) = simplelog::CombinedLogger::init(vec![simplelog::WriteLogger::new(
         // Set to debug to get full instruction logging.
         simplelog::LevelFilter::Info,
         simplelog::Config::default(),
         log_file,
-    )])
-    .unwrap();
+    )]) {
+        println!("Failed to initialize logger: {}", e);
+        return;
+    }
 
-    let rom_path = args.get(1).unwrap();
+    let rom_path = match args.get(1) {
+        Some(path) => path,
+        None => {
+            println!("Usage: chip8 <path/to/rom.ch8>");
+            return;
+        }
+    };
     match Emulator::new(rom_path.to_string()) {
         Ok(mut emu) => {
-            let event_loop: EventLoop<()> = EventLoop::new().unwrap();
+            let event_loop = match EventLoop::new() {
+                Ok(el) => el,
+                Err(e) => {
+                    println!("Failed to create event loop: {}", e);
+                    return;
+                }
+            };
             event_loop.set_control_flow(ControlFlow::Poll);
             let _ = event_loop.run_app(&mut emu);
         }
@@ -64,9 +85,8 @@ impl Emulator {
         vm.load_rom(&rom_path)?;
         let file_name = Path::new(rom_path.as_str())
             .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Unknown ROM".to_string());
         Ok(Self {
             vm: vm,
             rom_name: file_name,
@@ -112,7 +132,9 @@ impl Emulator {
                 };
                 pixel.copy_from_slice(&rgba);
             }
-            pixels.render().unwrap();
+            if let Err(e) = pixels.render() {
+                log::error!("Failed to render pixels: {}", e);
+            }
         }
     }
 
@@ -153,17 +175,28 @@ impl ApplicationHandler for Emulator {
             .with_title(format!("Chip-8 - {}", self.rom_name))
             .with_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT))
             .with_min_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
-        let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
+        let window = match event_loop.create_window(window_attributes) {
+            Ok(w) => Arc::new(w),
+            Err(e) => {
+                log::error!("Failed to create window: {}", e);
+                return;
+            }
+        };
         let fb = {
             let window_size = window.inner_size();
             let surface_texture =
                 SurfaceTexture::new(window_size.width, window_size.height, window.clone());
-            Pixels::new(
+            match Pixels::new(
                 Display::WIDTH as u32,
                 Display::HEIGHT as u32,
                 surface_texture,
-            )
-            .unwrap()
+            ) {
+                Ok(p) => p,
+                Err(e) => {
+                    log::error!("Failed to create pixels: {}", e);
+                    return;
+                }
+            }
         };
 
         self.window = Some(window.clone());

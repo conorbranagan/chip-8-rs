@@ -32,18 +32,24 @@ impl Memory {
         };
         for (i, row) in FONT.iter().enumerate() {
             for (j, col) in row.iter().enumerate() {
-                m.data[(i * row.len()) * j] = *col
+                m.data[i * row.len() + j] = *col
             }
         }
         m
     }
 
     pub(crate) fn write(&mut self, addr: usize, val: u8) {
-        self.data[addr] = val;
+        if addr < RAM_SIZE {
+            self.data[addr] = val;
+        }
     }
 
     pub(crate) fn read(&mut self, addr: usize) -> u8 {
-        self.data[addr]
+        if addr < RAM_SIZE {
+            self.data[addr]
+        } else {
+            0
+        }
     }
 }
 
@@ -97,9 +103,10 @@ mod tests {
     #[test]
     fn test_memory() {
         let mut memory = Memory::new();
-        memory.write(0x12, 1);
-        assert_eq!(memory.read(0x12), 1);
-        assert_eq!(memory.read(0x13), 0);
+        // Use address beyond font data (fonts occupy 0x00-0x4F)
+        memory.write(0x200, 1);
+        assert_eq!(memory.read(0x200), 1);
+        assert_eq!(memory.read(0x201), 0);
     }
 
     #[test]
@@ -108,6 +115,6 @@ mod tests {
         assert!(stack.push(1).is_ok());
         let result = stack.pop();
         assert!(result.is_ok());
-        assert_eq!(stack.pop().unwrap(), 1);
+        assert_eq!(result.unwrap(), 1);
     }
 }

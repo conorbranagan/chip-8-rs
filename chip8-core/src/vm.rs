@@ -177,9 +177,8 @@ impl Chip8VM {
             }
             ExitSubroutine => {
                 debug!("Exit subroutine");
-                if let Ok(addr) = self.stack.pop() {
-                    self.registers.pc = addr as usize;
-                }
+                let addr = self.stack.pop()?;
+                self.registers.pc = addr as usize;
             }
             Jump(addr) => {
                 debug!("Jumping to address {:#X}", addr);
