@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::display::Display;
 use crate::instructions::Instruction;
 use crate::keypad::{Key, KeyState, KeyWait, Keypad};
-use crate::memory::{Memory, Stack};
+use crate::memory::{Memory, Stack, RAM_SIZE};
 
 const NUM_REGISTERS: usize = 16;
 const ROM_START: usize = 0x200;
@@ -23,11 +23,17 @@ pub enum VMError {
     #[error("Rom load error: {0}")]
     RomLoadFailure(String),
 
+    #[error("Rom too large to fit in memory: {0} bytes")]
+    RomTooLarge(usize),
+
     #[error("Stack underflow")]
     StackUnderflow(),
 
     #[error("Stack overflow")]
     StackOverflow(),
+
+    #[error("Memory access out of bounds at address {0:#X}")]
+    MemoryOutOfBounds(usize),
 }
 
 struct Registers {
@@ -93,8 +99,11 @@ impl Chip8VM {
     pub fn load_rom(&mut self, rom_path: &String) -> Result<(), VMError> {
         match fs::read(rom_path) {
             Ok(rom_bytes) => {
+                if ROM_START + rom_bytes.len() > RAM_SIZE {
+                    return Err(VMError::RomTooLarge(rom_bytes.len()));
+                }
                 for (i, b) in rom_bytes.iter().enumerate() {
-                    self.memory.write(ROM_START + i, *b);
+                    self.memory.write(ROM_START + i, *b)?;
                 }
                 debug!("loaded {} into vm memory", rom_path);
                 Ok(())
@@ -111,8 +120,8 @@ impl Chip8VM {
         }
 
         // need to read 2 bytes for the full instruction.
-        let op1 = self.memory.read(self.registers.pc);
-        let op2 = self.memory.read(self.registers.pc + 1);
+        let op1 = self.memory.read(self.registers.pc)?;
+        let op2 = self.memory.read(self.registers.pc + 1)?;
         debug!("execute instruction @ {:#X}", self.registers.pc);
 
         // combine to hex operation
@@ -309,7 +318,7 @@ impl Chip8VM {
                 let mut ireg: usize = self.index_register;
 
                 for row in 0..height {
-                    let sprite_byte: u8 = self.memory.read(ireg as usize);
+                    let sprite_byte: u8 = self.memory.read(ireg as usize)?;
                     let mut x_offset = 0;
                     for bit in (0..8).rev() {
                         let b: u8 = sprite_byte >> bit & 1;
@@ -377,9 +386,9 @@ impl Chip8VM {
                 let val = self.registers[vx];
                 let (v1, v2, v3) = ((val / 100), (val / 10 % 10), (val % 10));
                 let idx = self.index_register;
-                self.memory.write(idx, v1);
-                self.memory.write(idx + 1, v2);
-                self.memory.write(idx + 2, v3);
+                self.memory.write(idx, v1)?;
+                self.memory.write(idx + 1, v2)?;
+                self.memory.write(idx + 2, v3)?;
                 debug!(
                     "Converting register {} to binary-coded decimal {} => ({}, {}, {})",
                     vx, val, v1, v2, v3
@@ -389,7 +398,7 @@ impl Chip8VM {
                 debug!("Storing registers 0 through {} into memory", vx);
                 let mut addr = self.index_register;
                 for vn in 0..=vx {
-                    self.memory.write(addr, self.registers[vn]);
+                    self.memory.write(addr, self.registers[vn])?;
                     addr += 1;
                 }
             }
@@ -397,7 +406,7 @@ impl Chip8VM {
                 debug!("Loading memory into registers 0 through {}", vx);
                 let mut addr = self.index_register;
                 for vn in 0..=vx {
-                    let val = self.memory.read(addr);
+                    let val = self.memory.read(addr)?;
                     self.registers[vn] = val;
                     addr += 1;
                 }
