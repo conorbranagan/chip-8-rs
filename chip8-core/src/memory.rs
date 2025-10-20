@@ -27,23 +27,37 @@ pub(crate) struct Memory {
 
 impl Memory {
     pub(crate) fn new() -> Memory {
-        let mut m = Memory {
+        let mut memory = Memory {
             data: [0; RAM_SIZE],
         };
-        for (i, row) in FONT.iter().enumerate() {
-            for (j, col) in row.iter().enumerate() {
-                m.data[(i * row.len()) * j] = *col
+        // Font sprites are loaded starting at address 0x000.
+        // Avoiding `write` here keeps `new` infallible.
+        for (glyph_index, row) in FONT.iter().enumerate() {
+            for (row_offset, byte) in row.iter().enumerate() {
+                let addr = glyph_index * row.len() + row_offset;
+                memory.data[addr] = *byte;
             }
         }
-        m
+        memory
     }
 
-    pub(crate) fn write(&mut self, addr: usize, val: u8) {
+    pub(crate) fn write(&mut self, addr: usize, val: u8) -> Result<(), VMError> {
+        if addr >= RAM_SIZE {
+            return Err(VMError::MemoryOutOfBounds(addr));
+        }
         self.data[addr] = val;
+        Ok(())
     }
 
-    pub(crate) fn read(&mut self, addr: usize) -> u8 {
-        self.data[addr]
+    pub(crate) fn read(&self, addr: usize) -> Result<u8, VMError> {
+        if addr >= RAM_SIZE {
+            return Err(VMError::MemoryOutOfBounds(addr));
+        }
+        Ok(self.data[addr])
+    }
+
+    pub(crate) fn size(&self) -> usize {
+        RAM_SIZE
     }
 }
 
@@ -97,9 +111,10 @@ mod tests {
     #[test]
     fn test_memory() {
         let mut memory = Memory::new();
-        memory.write(0x12, 1);
-        assert_eq!(memory.read(0x12), 1);
-        assert_eq!(memory.read(0x13), 0);
+        let addr = 0x210;
+        assert!(memory.write(addr, 1).is_ok());
+        assert_eq!(memory.read(addr).unwrap(), 1);
+        assert_eq!(memory.read(addr + 1).unwrap(), 0);
     }
 
     #[test]
@@ -107,7 +122,7 @@ mod tests {
         let mut stack = Stack::new(MAX_STACK_SIZE);
         assert!(stack.push(1).is_ok());
         let result = stack.pop();
-        assert!(result.is_ok());
-        assert_eq!(stack.pop().unwrap(), 1);
+        assert_eq!(result.unwrap(), 1);
+        assert!(matches!(stack.pop(), Err(VMError::StackUnderflow())));
     }
 }
