@@ -26,14 +26,24 @@ fn main() {
         return;
     }
 
-    let log_file = File::create(LOG_FILE).unwrap();
-    simplelog::CombinedLogger::init(vec![simplelog::WriteLogger::new(
+    let log_file = match File::create(LOG_FILE) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("Warning: Failed to create log file '{}': {}", LOG_FILE, e);
+            eprintln!("Continuing without file logging...");
+            // Continue without file logging rather than crashing
+            return;
+        }
+    };
+
+    if let Err(e) = simplelog::CombinedLogger::init(vec![simplelog::WriteLogger::new(
         // Set to debug to get full instruction logging.
         simplelog::LevelFilter::Info,
         simplelog::Config::default(),
         log_file,
-    )])
-    .unwrap();
+    )]) {
+        eprintln!("Warning: Failed to initialize logger: {}", e);
+    }
 
     let rom_path = args.get(1).unwrap();
     match Emulator::new(rom_path.to_string()) {

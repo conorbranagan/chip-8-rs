@@ -32,18 +32,25 @@ impl Memory {
         };
         for (i, row) in FONT.iter().enumerate() {
             for (j, col) in row.iter().enumerate() {
-                m.data[(i * row.len()) * j] = *col
+                m.data[i * row.len() + j] = *col
             }
         }
         m
     }
 
-    pub(crate) fn write(&mut self, addr: usize, val: u8) {
+    pub(crate) fn write(&mut self, addr: usize, val: u8) -> Result<(), VMError> {
+        if addr >= RAM_SIZE {
+            return Err(VMError::OutOfBounds(addr));
+        }
         self.data[addr] = val;
+        Ok(())
     }
 
-    pub(crate) fn read(&mut self, addr: usize) -> u8 {
-        self.data[addr]
+    pub(crate) fn read(&mut self, addr: usize) -> Result<u8, VMError> {
+        if addr >= RAM_SIZE {
+            return Err(VMError::OutOfBounds(addr));
+        }
+        Ok(self.data[addr])
     }
 }
 
@@ -86,6 +93,10 @@ impl Stack {
             return Err(VMError::StackUnderflow());
         }
         self.sp -= 1;
+        // Ensure the index is within Vec bounds
+        if self.sp >= self.data.len() {
+            return Err(VMError::StackUnderflow());
+        }
         Ok(self.data[self.sp])
     }
 }
@@ -97,9 +108,14 @@ mod tests {
     #[test]
     fn test_memory() {
         let mut memory = Memory::new();
-        memory.write(0x12, 1);
-        assert_eq!(memory.read(0x12), 1);
-        assert_eq!(memory.read(0x13), 0);
+        // Use address 0x200 which is after font data (fonts are 0x00-0x4F)
+        assert!(memory.write(0x200, 1).is_ok());
+        assert_eq!(memory.read(0x200).unwrap(), 1);
+        assert_eq!(memory.read(0x201).unwrap(), 0);
+
+        // Test bounds checking
+        assert!(memory.write(4096, 1).is_err());
+        assert!(memory.read(4096).is_err());
     }
 
     #[test]
@@ -108,6 +124,8 @@ mod tests {
         assert!(stack.push(1).is_ok());
         let result = stack.pop();
         assert!(result.is_ok());
-        assert_eq!(stack.pop().unwrap(), 1);
+        assert_eq!(result.unwrap(), 1);
+        // Test underflow
+        assert!(stack.pop().is_err());
     }
 }
