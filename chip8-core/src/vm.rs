@@ -93,6 +93,17 @@ impl Chip8VM {
     pub fn load_rom(&mut self, rom_path: &String) -> Result<(), VMError> {
         match fs::read(rom_path) {
             Ok(rom_bytes) => {
+                // Validate ROM size - CHIP-8 memory is 4KB, ROM starts at 0x200 (512)
+                // So max ROM size is 4096 - 512 = 3584 bytes
+                const MAX_ROM_SIZE: usize = 4096 - ROM_START;
+                if rom_bytes.len() > MAX_ROM_SIZE {
+                    return Err(VMError::RomLoadFailure(format!(
+                        "ROM size {} bytes exceeds maximum {} bytes",
+                        rom_bytes.len(),
+                        MAX_ROM_SIZE
+                    )));
+                }
+
                 for (i, b) in rom_bytes.iter().enumerate() {
                     self.memory.write(ROM_START + i, *b);
                 }
@@ -177,9 +188,8 @@ impl Chip8VM {
             }
             ExitSubroutine => {
                 debug!("Exit subroutine");
-                if let Ok(addr) = self.stack.pop() {
-                    self.registers.pc = addr as usize;
-                }
+                let addr = self.stack.pop()?;
+                self.registers.pc = addr as usize;
             }
             Jump(addr) => {
                 debug!("Jumping to address {:#X}", addr);
