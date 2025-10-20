@@ -19,7 +19,7 @@ const FONT: [[u8; 5]; 16] = [
     [0xF0, 0x80, 0xF0, 0x80, 0x80], // F
 ];
 
-const RAM_SIZE: usize = 4 * 1024;
+pub(crate) const RAM_SIZE: usize = 4 * 1024;
 
 pub(crate) struct Memory {
     data: [u8; RAM_SIZE],
@@ -32,18 +32,26 @@ impl Memory {
         };
         for (i, row) in FONT.iter().enumerate() {
             for (j, col) in row.iter().enumerate() {
-                m.data[(i * row.len()) * j] = *col
+                let idx = i * row.len() + j;
+                m.data[idx] = *col;
             }
         }
         m
     }
 
-    pub(crate) fn write(&mut self, addr: usize, val: u8) {
+    pub(crate) fn write(&mut self, addr: usize, val: u8) -> Result<(), VMError> {
+        if addr >= RAM_SIZE {
+            return Err(VMError::MemoryOutOfBounds(addr));
+        }
         self.data[addr] = val;
+        Ok(())
     }
 
-    pub(crate) fn read(&mut self, addr: usize) -> u8 {
-        self.data[addr]
+    pub(crate) fn read(&self, addr: usize) -> Result<u8, VMError> {
+        if addr >= RAM_SIZE {
+            return Err(VMError::MemoryOutOfBounds(addr));
+        }
+        Ok(self.data[addr])
     }
 }
 
@@ -97,9 +105,10 @@ mod tests {
     #[test]
     fn test_memory() {
         let mut memory = Memory::new();
-        memory.write(0x12, 1);
-        assert_eq!(memory.read(0x12), 1);
-        assert_eq!(memory.read(0x13), 0);
+        assert!(memory.write(0x212, 1).is_ok());
+        assert_eq!(memory.read(0x212).unwrap(), 1);
+        assert_eq!(memory.read(0x213).unwrap(), 0);
+        assert_eq!(memory.read(0x0).unwrap(), FONT[0][0]);
     }
 
     #[test]
@@ -107,7 +116,7 @@ mod tests {
         let mut stack = Stack::new(MAX_STACK_SIZE);
         assert!(stack.push(1).is_ok());
         let result = stack.pop();
-        assert!(result.is_ok());
-        assert_eq!(stack.pop().unwrap(), 1);
+        assert_eq!(result.unwrap(), 1);
+        assert!(stack.pop().is_err());
     }
 }
